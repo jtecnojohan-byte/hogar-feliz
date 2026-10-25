@@ -31,11 +31,11 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease
-        
 
       - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
           name: hogar-feliz-apk-release
-path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+
