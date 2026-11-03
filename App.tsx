@@ -202,14 +202,23 @@ export default function App() {
     if (memberError) throw memberError;
     const ids = (membershipRows || []).map((row: { user_id: string }) => row.user_id);
     if (!ids.length) { setMembers([]); return; }
+    // Los perfiles pueden estar protegidos por RLS. La lista de membresías
+    // sigue siendo suficiente para proponer tareas sin exponer datos privados.
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
       .select('user_id, display_name')
       .in('user_id', ids);
-    if (profileError) throw profileError;
-    setMembers((profileRows || []).map((profile: { user_id: string; display_name: string }) => ({
-      user_id: profile.user_id,
-      display_name: profile.display_name || 'Integrante',
+
+    const namesById = new Map<string, string>();
+    if (!profileError) {
+      (profileRows || []).forEach((profile: { user_id: string; display_name: string | null }) => {
+        namesById.set(profile.user_id, profile.display_name?.trim() || 'Integrante');
+      });
+    }
+
+    setMembers(ids.map((memberId) => ({
+      user_id: memberId,
+      display_name: namesById.get(memberId) || 'Integrante',
     })));
   };
 
@@ -517,21 +526,30 @@ export default function App() {
     counts[member.user_id] = pendingTasks.filter((task) => task.assigned_to === member.user_id).length;
     return counts;
   }, {});
-  const suggestions: TaskSuggestion[] = pendingTasks.filter((task) => !task.assigned_to).map((task) => {
+  // La carga virtual evita recomendar todas las tareas nuevas a la misma persona.
+  // Sin historial de asignaciones ni preferencias, rotación y disponibilidad quedan neutrales.
+  const virtualLoads = { ...assignedCounts };
+  const unassignedTasks = pendingTasks.filter((task) => !task.assigned_to);
+  const suggestions: TaskSuggestion[] = unassignedTasks.map((task) => {
     const ranked = members.map((member) => {
-      const load = assignedCounts[member.user_id] || 0;
-      const balanceScore = members.length ? 100 / (1 + load) : 0;
-      const rotationScore = 100 / (1 + load);
-      const availabilityScore = 50; // Neutral until member availability/preferences are configured.
-      return { member, score: 0.5 * balanceScore + 0.3 * rotationScore + 0.2 * availabilityScore, load };
-    }).sort((a, b) => b.score - a.score);
+      const load = virtualLoads[member.user_id] || 0;
+      const balanceScore = 100 / (1 + load);
+      const rotationScore = 50;
+      const availabilityScore = 50;
+      const score = 0.5 * balanceScore + 0.3 * rotationScore + 0.2 * availabilityScore;
+      return { member, score, load };
+    }).sort((a, b) => b.score - a.score || a.load - b.load);
     const best = ranked[0];
-    return best ? {
+    if (!best) return null;
+    virtualLoads[best.member.user_id] = (virtualLoads[best.member.user_id] || 0) + 1;
+    return {
       task,
       member: best.member,
       score: Math.round(best.score),
-      reason: best.load === 0 ? 'Tiene menos tareas pendientes asignadas.' : 'Su carga pendiente es menor que la de otros integrantes.',
-    } : null;
+      reason: best.load === 0
+        ? 'No tiene tareas pendientes asignadas; esta propuesta ayuda a repartir la carga.'
+        : 'La propuesta considera su carga actual y distribuye las nuevas tareas entre el equipo.',
+    };
   }).filter((value): value is TaskSuggestion => value !== null);
   const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
 
@@ -702,13 +720,13 @@ export default function App() {
               {screen === 'hogarbot' && (
                 <>
                   <View style={s.welcomeBlock}>
-                    <Text style={s.dateEyebrow}>ASISTENTE PREMIUM</Text>
+                    <Text style={s.dateEyebrow}>ASISTENTE DE TAREAS · VERSIÓN INICIAL</Text>
                     <Text style={s.pageTitle}>HogarBot 🤖</Text>
-                    <Text style={s.pageSubtitle}>Propuestas equilibradas para organizar el hogar.</Text>
+                    <Text style={s.pageSubtitle}>Propuestas orientativas para repartir tareas de forma más equilibrada.</Text>
                   </View>
                   <View style={s.botHeroCard}>
                     <Text style={s.botHeroTitle}>Tu equipo, mejor organizado</Text>
-                    <Text style={s.botHeroText}>La primera versión usa equilibrio (50 %), rotación (30 %) y disponibilidad/preferencias (20 %).</Text>
+                    <Text style={s.botHeroText}>Ponderación inicial: equilibrio de carga (50 %), rotación (30 %) y disponibilidad/preferencias (20 %). En esta versión, rotación y disponibilidad son neutrales porque aún no hay historial ni preferencias guardadas; las propuestas se distribuyen usando la carga actual.</Text>
                   </View>
                   <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>Propuestas de asignación</Text><Text style={s.sectionHint}>{suggestions.length} tareas pendientes sin asignar · {members.length} integrantes</Text></View></View>
                   {members.length === 0 ? (
@@ -722,13 +740,13 @@ export default function App() {
                       <Text style={s.sectionHint}>{suggestion.reason} Puntuación orientativa: {suggestion.score}/100.</Text>
                       <TouchableOpacity style={s.primaryButton} disabled={busy} onPress={() => run(async () => {
                         if (!household) return;
-                        const { error } = await supabase.from('tasks').update({ assigned_to: suggestion.member.user_id }).eq('id', suggestion.task.id).eq('household_id', household.id);
+                        const { error } = await supabase.from('tasks').update({ assigned_to: suggestion.member.user_id }).eq('id', suggestion.task.id).eq('household_id', household.id).eq('completed', false).is('assigned_to', null);
                         if (error) throw error;
                         await loadLists(household.id);
                       })}><Text style={s.primaryButtonText}>Aceptar asignación</Text></TouchableOpacity>
                     </View>
                   ))}
-                  <View style={s.botNoteCard}><Text style={s.botNoteTitle}>Así funciona esta versión</Text><Text style={s.botNoteText}>La disponibilidad todavía se considera neutral porque aún no hay preferencias configuradas. HogarBot solo propone asignaciones para tareas pendientes sin responsable y nunca cambia otras asignaciones automáticamente.</Text></View>
+                  <View style={s.botNoteCard}><Text style={s.botNoteTitle}>Así funciona esta versión</Text><Text style={s.botNoteText}>Esta versión usa la carga pendiente actual y reparte las propuestas de forma progresiva. La rotación histórica y la disponibilidad siguen neutrales hasta que existan datos. HogarBot solo propone tareas pendientes sin responsable; nada se asigna sin que alguien pulse “Aceptar asignación”.</Text></View>
                 </>
               )}
 
