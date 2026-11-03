@@ -659,9 +659,11 @@ export default function App() {
                   <View style={s.profileInfo}><Text style={s.profileInfoLabel}>{t('MI HOGAR', 'MY HOUSEHOLD')}</Text><Text style={s.profileInfoValue}>{household.name}</Text></View>
                   <View style={s.settingsCard}>
                     <Text style={s.settingsTitle}>{t('⚙️ Configuración', '⚙️ Settings')}</Text>
-                    <Text style={s.settingsLabel}>{t('Inicio de sesión biométrico', 'Biometric sign-in')}</Text>
-                    {biometricEnabled ? <Text style={s.sectionHint}>{t('Activado en este dispositivo.', 'Enabled on this device.')}</Text> : <><Text style={s.sectionHint}>{t('Usa la huella o el rostro de Android para iniciar sesión sin escribir tu contraseña.', 'Use Android fingerprint or face recognition to sign in without typing your password.')}</Text><TextInput style={s.input} placeholder={t('Contraseña actual para activar', 'Current password to enable')} placeholderTextColor="#89948D" secureTextEntry value={biometricPassword} onChangeText={setBiometricPassword} /></>}
-                    <TouchableOpacity style={biometricEnabled ? s.leaveHouseholdButton : s.outlineButton} onPress={configureBiometrics} disabled={busy}><Text style={biometricEnabled ? s.leaveHouseholdText : s.outlineButtonText}>{biometricEnabled ? t('Desactivar biometría', 'Disable biometrics') : t('Activar huella o rostro', 'Enable fingerprint or face')}</Text></TouchableOpacity>
+                    {Platform.OS !== 'web' && <>
+                      <Text style={s.settingsLabel}>{t('Inicio de sesión biométrico', 'Biometric sign-in')}</Text>
+                      {biometricEnabled ? <Text style={s.sectionHint}>{t('Activado en este dispositivo.', 'Enabled on this device.')}</Text> : <><Text style={s.sectionHint}>{t('Usa la huella o el rostro de Android para iniciar sesión sin escribir tu contraseña.', 'Use Android fingerprint or face recognition to sign in without typing your password.')}</Text><TextInput style={s.input} placeholder={t('Contraseña actual para activar', 'Current password to enable')} placeholderTextColor="#89948D" secureTextEntry value={biometricPassword} onChangeText={setBiometricPassword} /></>}
+                      <TouchableOpacity style={biometricEnabled ? s.leaveHouseholdButton : s.outlineButton} onPress={configureBiometrics} disabled={busy}><Text style={biometricEnabled ? s.leaveHouseholdText : s.outlineButtonText}>{biometricEnabled ? t('Desactivar biometría', 'Disable biometrics') : t('Activar huella o rostro', 'Enable fingerprint or face')}</Text></TouchableOpacity>
+                    </>}
                     <Text style={[s.settingsLabel, { marginTop: 18 }]}>{t('Idioma', 'Language')}</Text>
                     <View style={s.languageRow}>
                       <TouchableOpacity style={[s.languageButton, language === 'es' && s.languageButtonActive]} onPress={() => changeLanguage('es')}><Text style={[s.languageButtonText, language === 'es' && s.languageButtonTextActive]}>Español</Text></TouchableOpacity>
@@ -694,7 +696,7 @@ const s = StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18 },
   brandMark: { width: 64, height: 64, borderRadius: 22, backgroundColor: '#247A58', alignItems: 'center', justifyContent: 'center' },
   brandMarkText: { color: '#fff', fontSize: 42, fontWeight: '800', marginTop: -6 },
-  authPage: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: 48, paddingBottom: 36 },
+  authPage: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: 48, paddingBottom: 36, width: '100%', maxWidth: 560, alignSelf: 'center' },
   authBrand: { alignItems: 'center', marginBottom: 32 },
   brand: { color: '#18372B', fontSize: 28, fontWeight: '900', letterSpacing: -0.8, marginTop: 14 },
   tagline: { color: '#7B8B80', fontSize: 14, marginTop: 5 },
@@ -708,7 +710,7 @@ const s = StyleSheet.create({
   authLinkWrap: { alignItems: 'center', paddingVertical: 18 },
   link: { color: '#247A58', fontSize: 13, fontWeight: '800', textAlign: 'center' },
   footer: { color: '#9AA79D', fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textAlign: 'center', marginTop: 28, marginBottom: 8 },
-  setupPage: { flexGrow: 1, padding: 22, paddingTop: 38, paddingBottom: 28 },
+  setupPage: { flexGrow: 1, padding: 22, paddingTop: 38, paddingBottom: 28, width: '100%', maxWidth: 680, alignSelf: 'center' },
   setupTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 34 },
   setupIntro: { marginBottom: 20 },
   setupCard: { backgroundColor: '#FFFFFF', borderRadius: 23, padding: 20, borderWidth: 1, borderColor: '#E8EDE7', marginBottom: 14 },
@@ -717,7 +719,7 @@ const s = StyleSheet.create({
   outlineButton: { borderWidth: 1.5, borderColor: '#247A58', borderRadius: 15, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
   outlineButtonText: { color: '#247A58', fontSize: 14, fontWeight: '800' },
   mainScroll: { flex: 1 },
-  mainContent: { paddingHorizontal: 21, paddingTop: 17, paddingBottom: 24 },
+  mainContent: { paddingHorizontal: 21, paddingTop: 17, paddingBottom: 24, width: '100%', maxWidth: 960, alignSelf: 'center' },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
   topBrand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   smallBrandMark: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#247A58', alignItems: 'center', justifyContent: 'center' },
