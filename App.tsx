@@ -17,6 +17,7 @@ import {
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { supabase } from './src/supabase';
 import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 type Household = {
   id: string;
@@ -52,6 +53,8 @@ export default function App() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [language, setLanguage] = useState<'es' | 'en'>('es');
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricPassword, setBiometricPassword] = useState('');
 
   const [userId, setUserId] = useState<string | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
@@ -66,10 +69,59 @@ export default function App() {
   const t = (es: string, en: string) => language === 'es' ? es : en;
 
   useEffect(() => {
+    SecureStore.getItemAsync('hogar-feliz-biometric-enabled').then((value) => setBiometricEnabled(value === 'true')).catch(() => setBiometricEnabled(false));
+  }, []);
+
+  useEffect(() => {
     SecureStore.getItemAsync('hogar-feliz-language')
       .then((value) => { if (value === 'es' || value === 'en') setLanguage(value); })
       .catch(() => {});
   }, []);
+
+  const signInWithBiometrics = () => run(async () => {
+    const storedEmail = await SecureStore.getItemAsync('hogar-feliz-biometric-email');
+    const storedPassword = await SecureStore.getItemAsync('hogar-feliz-biometric-password');
+    if (!storedEmail || !storedPassword) {
+      await SecureStore.deleteItemAsync('hogar-feliz-biometric-enabled');
+      setBiometricEnabled(false);
+      throw new Error(t('Vuelve a iniciar sesión con tu correo y contraseña para configurar la biometría.', 'Sign in with your email and password again to set up biometrics.'));
+    }
+    const result = await LocalAuthentication.authenticateAsync({ promptMessage: t('Confirma tu identidad para entrar a Hogar Feliz', 'Verify your identity to sign in to Hogar Feliz'), cancelLabel: t('Cancelar', 'Cancel'), disableDeviceFallback: true });
+    if (!result.success) return;
+    const { data, error } = await supabase.auth.signInWithPassword({ email: storedEmail, password: storedPassword });
+    if (error) throw error;
+    const user = data.session?.user;
+    if (!user) throw new Error(t('No se pudo iniciar sesión.', 'Could not sign in.'));
+    setUserId(user.id);
+    setSessionEmail(user.email ?? storedEmail);
+    await loadHousehold(user.id);
+  });
+
+  const configureBiometrics = () => run(async () => {
+    if (biometricEnabled) {
+      await SecureStore.deleteItemAsync('hogar-feliz-biometric-enabled');
+      await SecureStore.deleteItemAsync('hogar-feliz-biometric-email');
+      await SecureStore.deleteItemAsync('hogar-feliz-biometric-password');
+      setBiometricEnabled(false);
+      setBiometricPassword('');
+      Alert.alert(t('Biometría desactivada', 'Biometrics disabled'), t('Podrás seguir entrando con tu correo y contraseña.', 'You can continue signing in with your email and password.'));
+      return;
+    }
+    if (!biometricPassword) throw new Error(t('Escribe tu contraseña actual para activar la biometría.', 'Enter your current password to enable biometrics.'));
+    if (!(await LocalAuthentication.hasHardwareAsync()) || !(await LocalAuthentication.isEnrolledAsync())) throw new Error(t('Este dispositivo no tiene huella o reconocimiento facial configurado en Android.', 'This device has no fingerprint or face recognition configured in Android.'));
+    const check = await LocalAuthentication.authenticateAsync({ promptMessage: t('Confirma tu identidad', 'Verify your identity'), cancelLabel: t('Cancelar', 'Cancel'), disableDeviceFallback: true });
+    if (!check.success) return;
+    const { data, error } = await supabase.auth.signInWithPassword({ email: sessionEmail ?? '', password: biometricPassword });
+    if (error) throw error;
+    const verifiedEmail = data.session?.user?.email;
+    if (!verifiedEmail) throw new Error(t('No se pudo verificar tu cuenta.', 'Could not verify your account.'));
+    await SecureStore.setItemAsync('hogar-feliz-biometric-email', verifiedEmail);
+    await SecureStore.setItemAsync('hogar-feliz-biometric-password', biometricPassword);
+    await SecureStore.setItemAsync('hogar-feliz-biometric-enabled', 'true');
+    setBiometricEnabled(true);
+    setBiometricPassword('');
+    Alert.alert(t('Biometría activada', 'Biometrics enabled'), t('La próxima vez podrás iniciar sesión con tu huella o rostro.', 'Next time, you can sign in with your fingerprint or face.'));
+  });
 
   const changeLanguage = async (next: 'es' | 'en') => {
     setLanguage(next);
@@ -91,6 +143,7 @@ export default function App() {
     if (newPassword !== confirmPassword) throw new Error(t('Las contraseñas no coinciden.', 'The passwords do not match.'));
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) throw error;
+    if (biometricEnabled) await SecureStore.setItemAsync('hogar-feliz-biometric-password', newPassword);
     setNewPassword('');
     setConfirmPassword('');
     Alert.alert(t('Contraseña actualizada', 'Password updated'), t('Tu contraseña se cambió correctamente.', 'Your password was changed successfully.'));
@@ -475,6 +528,7 @@ export default function App() {
               <TouchableOpacity style={s.primaryButton} onPress={mode === 'signup' ? signUp : signIn} disabled={busy}>
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>{mode === 'signup' ? 'Crear mi cuenta  →' : 'Iniciar sesión  →'}</Text>}
               </TouchableOpacity>
+              {mode === 'signin' && biometricEnabled && <TouchableOpacity style={[s.outlineButton, { marginTop: 12 }]} onPress={signInWithBiometrics} disabled={busy}><Text style={s.outlineButtonText}>{t('Entrar con huella o rostro', 'Sign in with fingerprint or face')}</Text></TouchableOpacity>}
               <TouchableOpacity onPress={() => setMode(mode === 'signup' ? 'signin' : 'signup')} style={s.authLinkWrap}>
                 <Text style={s.link}>{mode === 'signup' ? 'Ya tengo cuenta · Iniciar sesión' : '¿Primera vez? Crear una cuenta'}</Text>
               </TouchableOpacity>
@@ -605,7 +659,10 @@ export default function App() {
                   <View style={s.profileInfo}><Text style={s.profileInfoLabel}>{t('MI HOGAR', 'MY HOUSEHOLD')}</Text><Text style={s.profileInfoValue}>{household.name}</Text></View>
                   <View style={s.settingsCard}>
                     <Text style={s.settingsTitle}>{t('⚙️ Configuración', '⚙️ Settings')}</Text>
-                    <Text style={s.settingsLabel}>{t('Idioma', 'Language')}</Text>
+                    <Text style={s.settingsLabel}>{t('Inicio de sesión biométrico', 'Biometric sign-in')}</Text>
+                    {biometricEnabled ? <Text style={s.sectionHint}>{t('Activado en este dispositivo.', 'Enabled on this device.')}</Text> : <><Text style={s.sectionHint}>{t('Usa la huella o el rostro de Android para iniciar sesión sin escribir tu contraseña.', 'Use Android fingerprint or face recognition to sign in without typing your password.')}</Text><TextInput style={s.input} placeholder={t('Contraseña actual para activar', 'Current password to enable')} placeholderTextColor="#89948D" secureTextEntry value={biometricPassword} onChangeText={setBiometricPassword} /></>}
+                    <TouchableOpacity style={biometricEnabled ? s.leaveHouseholdButton : s.outlineButton} onPress={configureBiometrics} disabled={busy}><Text style={biometricEnabled ? s.leaveHouseholdText : s.outlineButtonText}>{biometricEnabled ? t('Desactivar biometría', 'Disable biometrics') : t('Activar huella o rostro', 'Enable fingerprint or face')}</Text></TouchableOpacity>
+                    <Text style={[s.settingsLabel, { marginTop: 18 }]}>{t('Idioma', 'Language')}</Text>
                     <View style={s.languageRow}>
                       <TouchableOpacity style={[s.languageButton, language === 'es' && s.languageButtonActive]} onPress={() => changeLanguage('es')}><Text style={[s.languageButtonText, language === 'es' && s.languageButtonTextActive]}>Español</Text></TouchableOpacity>
                       <TouchableOpacity style={[s.languageButton, language === 'en' && s.languageButtonActive]} onPress={() => changeLanguage('en')}><Text style={[s.languageButtonText, language === 'en' && s.languageButtonTextActive]}>English</Text></TouchableOpacity>
