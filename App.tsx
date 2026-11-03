@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { supabase } from './src/supabase';
+import * as SecureStore from 'expo-secure-store';
 
 type Household = {
   id: string;
@@ -46,6 +47,10 @@ export default function App() {
   const [inviteCode, setInviteCode] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
   const [itemName, setItemName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [language, setLanguage] = useState<'es' | 'en'>('es');
 
   const [userId, setUserId] = useState<string | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
@@ -56,6 +61,39 @@ export default function App() {
   const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile'>('home');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const t = (es: string, en: string) => language === 'es' ? es : en;
+
+  useEffect(() => {
+    SecureStore.getItemAsync('hogar-feliz-language')
+      .then((value) => { if (value === 'es' || value === 'en') setLanguage(value); })
+      .catch(() => {});
+  }, []);
+
+  const changeLanguage = async (next: 'es' | 'en') => {
+    setLanguage(next);
+    try { await SecureStore.setItemAsync('hogar-feliz-language', next); }
+    catch { Alert.alert(t('Aviso', 'Notice'), t('No se pudo guardar el idioma en este dispositivo.', 'Could not save the language on this device.')); }
+  };
+
+  const changeEmail = () => run(async () => {
+    const value = newEmail.trim().toLowerCase();
+    if (!value || !value.includes('@')) throw new Error(t('Escribe un correo válido.', 'Enter a valid email address.'));
+    const { error } = await supabase.auth.updateUser({ email: value });
+    if (error) throw error;
+    setNewEmail('');
+    Alert.alert(t('Revisa tus correos', 'Check your inboxes'), t('Supabase enviará mensajes de confirmación según la configuración de seguridad del proyecto. El correo cambiará cuando completes la verificación.', 'Supabase will send confirmation messages according to your project security settings. Your email changes after verification.'));
+  });
+
+  const changePassword = () => run(async () => {
+    if (newPassword.length < 8) throw new Error(t('La nueva contraseña debe tener al menos 8 caracteres.', 'Your new password must have at least 8 characters.'));
+    if (newPassword !== confirmPassword) throw new Error(t('Las contraseñas no coinciden.', 'The passwords do not match.'));
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    setNewPassword('');
+    setConfirmPassword('');
+    Alert.alert(t('Contraseña actualizada', 'Password updated'), t('Tu contraseña se cambió correctamente.', 'Your password was changed successfully.'));
+  });
 
   const loadHousehold = useCallback(async (id: string, preferredHouseholdId?: string) => {
     let householdId = preferredHouseholdId;
@@ -366,10 +404,10 @@ export default function App() {
   const BottomNav = () => (
     <View style={s.bottomNav}>
       {([
-        ['home', '⌂', 'Inicio'],
-        ['tasks', '✓', 'Tareas'],
-        ['shopping', '▤', 'Compras'],
-        ['profile', '◉', 'Perfil'],
+        ['home', '⌂', t('Inicio', 'Home')],
+        ['tasks', '✓', t('Tareas', 'Tasks')],
+        ['shopping', '▤', t('Compras', 'Shopping')],
+        ['profile', '◉', t('Perfil', 'Profile')],
       ] as const).map(([key, glyph, label]) => (
         <TouchableOpacity key={key} style={s.navItem} onPress={() => setScreen(key)}>
           <View style={[s.navIconWrap, screen === key && s.navIconActive]}>
@@ -527,10 +565,25 @@ export default function App() {
 
               {screen === 'profile' && (
                 <>
-                  <View style={s.welcomeBlock}><Text style={s.dateEyebrow}>TU CUENTA Y TU FAMILIA</Text><Text style={s.pageTitle}>Perfil</Text><Text style={s.pageSubtitle}>Todo lo importante de tu hogar.</Text></View>
+                  <View style={s.welcomeBlock}><Text style={s.dateEyebrow}>{t('TU CUENTA Y TU FAMILIA', 'YOUR ACCOUNT AND FAMILY')}</Text><Text style={s.pageTitle}>{t('Perfil', 'Profile')}</Text><Text style={s.pageSubtitle}>{t('Todo lo importante de tu hogar.', 'Everything important about your home.')}</Text></View>
                   <View style={s.profileCard}><View style={s.profileAvatar}><Text style={s.profileAvatarText}>{(displayName || sessionEmail || 'H').charAt(0).toUpperCase()}</Text></View><Text style={s.profileName}>{displayName.trim() || 'Integrante del hogar'}</Text><Text style={s.profileEmail}>{sessionEmail}</Text></View>
                   <View style={s.codeProfileCard}><Text style={s.heroKicker}>CÓDIGO PARA INVITAR</Text><Text style={s.codeProfile}>{household.invite_code}</Text><Text style={s.sectionHint}>Compártelo con las personas que quieras sumar a {household.name}.</Text></View>
-                  <View style={s.profileInfo}><Text style={s.profileInfoLabel}>MI HOGAR</Text><Text style={s.profileInfoValue}>{household.name}</Text></View>
+                  <View style={s.profileInfo}><Text style={s.profileInfoLabel}>{t('MI HOGAR', 'MY HOUSEHOLD')}</Text><Text style={s.profileInfoValue}>{household.name}</Text></View>
+                  <View style={s.settingsCard}>
+                    <Text style={s.settingsTitle}>{t('⚙️ Configuración', '⚙️ Settings')}</Text>
+                    <Text style={s.settingsLabel}>{t('Idioma', 'Language')}</Text>
+                    <View style={s.languageRow}>
+                      <TouchableOpacity style={[s.languageButton, language === 'es' && s.languageButtonActive]} onPress={() => changeLanguage('es')}><Text style={[s.languageButtonText, language === 'es' && s.languageButtonTextActive]}>Español</Text></TouchableOpacity>
+                      <TouchableOpacity style={[s.languageButton, language === 'en' && s.languageButtonActive]} onPress={() => changeLanguage('en')}><Text style={[s.languageButtonText, language === 'en' && s.languageButtonTextActive]}>English</Text></TouchableOpacity>
+                    </View>
+                    <Text style={s.settingsLabel}>{t('Cambiar correo electrónico', 'Change email address')}</Text>
+                    <TextInput style={s.input} placeholder={t('Nuevo correo electrónico', 'New email address')} placeholderTextColor="#89948D" autoCapitalize="none" keyboardType="email-address" value={newEmail} onChangeText={setNewEmail} />
+                    <TouchableOpacity style={s.outlineButton} onPress={changeEmail} disabled={busy}><Text style={s.outlineButtonText}>{t('Actualizar correo', 'Update email')}</Text></TouchableOpacity>
+                    <Text style={[s.settingsLabel, { marginTop: 20 }]}>{t('Cambiar contraseña', 'Change password')}</Text>
+                    <TextInput style={s.input} placeholder={t('Nueva contraseña (mínimo 8 caracteres)', 'New password (at least 8 characters)')} placeholderTextColor="#89948D" secureTextEntry value={newPassword} onChangeText={setNewPassword} />
+                    <TextInput style={s.input} placeholder={t('Confirmar nueva contraseña', 'Confirm new password')} placeholderTextColor="#89948D" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
+                    <TouchableOpacity style={s.primaryButton} onPress={changePassword} disabled={busy}><Text style={s.primaryButtonText}>{t('Guardar contraseña', 'Save password')}</Text></TouchableOpacity>
+                  </View>
                   <TouchableOpacity style={s.logoutButton} onPress={signOut} disabled={busy}><Text style={s.logoutText}>Cerrar sesión</Text></TouchableOpacity>
                 </>
               )}
@@ -638,6 +691,14 @@ const s = StyleSheet.create({
   profileInfo: { backgroundColor: '#FFFFFF', borderRadius: 17, padding: 17, borderWidth: 1, borderColor: '#E9EEE7' },
   profileInfoLabel: { color: '#95A198', fontSize: 9, fontWeight: '900', letterSpacing: 1.3, marginBottom: 7 },
   profileInfoValue: { color: '#18372B', fontSize: 15, fontWeight: '800' },
+  settingsCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#E9EEE7', marginTop: 14 },
+  settingsTitle: { color: '#18372B', fontSize: 18, fontWeight: '900', marginBottom: 17 },
+  settingsLabel: { color: '#52675A', fontSize: 12, fontWeight: '800', marginBottom: 9, marginTop: 5 },
+  languageRow: { flexDirection: 'row', gap: 10, marginBottom: 17 },
+  languageButton: { flex: 1, borderWidth: 1, borderColor: '#DCE6DC', borderRadius: 13, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F9F6' },
+  languageButtonActive: { backgroundColor: '#E6F1E7', borderColor: '#247A58' },
+  languageButtonText: { color: '#7B8B80', fontSize: 13, fontWeight: '800' },
+  languageButtonTextActive: { color: '#247A58' },
   logoutButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#E5CFCB', alignItems: 'center', justifyContent: 'center', marginTop: 17, backgroundColor: '#FFF9F8' },
   logoutText: { color: '#B65D50', fontSize: 13, fontWeight: '900' },
   bottomNav: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E9EEE7', paddingTop: 9, paddingBottom: Platform.OS === 'ios' ? 18 : 10, paddingHorizontal: 8 },
