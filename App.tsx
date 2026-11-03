@@ -22,6 +22,7 @@ type Household = {
   id: string;
   name: string;
   invite_code: string;
+  owner_id: string;
 };
 
 type Task = {
@@ -121,7 +122,7 @@ export default function App() {
 
     const { data: home, error: homeError } = await supabase
       .from('households')
-      .select('id, name, invite_code')
+      .select('id, name, invite_code, owner_id')
       .eq('id', householdId)
       .maybeSingle();
 
@@ -385,6 +386,39 @@ export default function App() {
       if (error) throw error;
     });
 
+  const leaveHousehold = () => {
+    if (!household || !userId) return;
+    if (household.owner_id === userId) {
+      Alert.alert(
+        t('Eres quien administra este hogar', 'You manage this household'),
+        t('Antes de salir, transfiere la propiedad a otro integrante. Así el hogar y sus datos no quedan sin administrador.', 'Before leaving, transfer ownership to another member so the household and its data keep an administrator.')
+      );
+      return;
+    }
+    Alert.alert(
+      t('¿Salir de este hogar?', 'Leave this household?'),
+      t('Dejarás de ver sus tareas y lista de compras. Los demás integrantes y los datos del hogar no se eliminarán.', 'You will no longer see its tasks or shopping list. Other members and household data will not be deleted.'),
+      [
+        { text: t('Cancelar', 'Cancel'), style: 'cancel' },
+        { text: t('Salir del hogar', 'Leave household'), style: 'destructive', onPress: () => {
+          void run(async () => {
+            const { error } = await supabase
+              .from('household_members')
+              .delete()
+              .eq('household_id', household.id)
+              .eq('user_id', userId);
+            if (error) throw error;
+            setHousehold(null);
+            setTasks([]);
+            setItems([]);
+            setScreen('home');
+            Alert.alert(t('Ya saliste del hogar', 'You left the household'), t('Tu cuenta sigue activa. Puedes crear otro hogar o unirte con un código.', 'Your account is still active. You can create another household or join with a code.'));
+          });
+        }}
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={s.safe}>
@@ -584,6 +618,7 @@ export default function App() {
                     <TextInput style={s.input} placeholder={t('Confirmar nueva contraseña', 'Confirm new password')} placeholderTextColor="#89948D" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
                     <TouchableOpacity style={s.primaryButton} onPress={changePassword} disabled={busy}><Text style={s.primaryButtonText}>{t('Guardar contraseña', 'Save password')}</Text></TouchableOpacity>
                   </View>
+                  <TouchableOpacity style={s.leaveHouseholdButton} onPress={leaveHousehold} disabled={busy}><Text style={s.leaveHouseholdText}>{t('Salir del hogar', 'Leave household')}</Text></TouchableOpacity>
                   <TouchableOpacity style={s.logoutButton} onPress={signOut} disabled={busy}><Text style={s.logoutText}>Cerrar sesión</Text></TouchableOpacity>
                 </>
               )}
@@ -699,6 +734,8 @@ const s = StyleSheet.create({
   languageButtonActive: { backgroundColor: '#E6F1E7', borderColor: '#247A58' },
   languageButtonText: { color: '#7B8B80', fontSize: 13, fontWeight: '800' },
   languageButtonTextActive: { color: '#247A58' },
+  leaveHouseholdButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#E5CFCB', alignItems: 'center', justifyContent: 'center', marginTop: 17, backgroundColor: '#FFF9F8' },
+  leaveHouseholdText: { color: '#B65D50', fontSize: 13, fontWeight: '900' },
   logoutButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#E5CFCB', alignItems: 'center', justifyContent: 'center', marginTop: 17, backgroundColor: '#FFF9F8' },
   logoutText: { color: '#B65D50', fontSize: 13, fontWeight: '900' },
   bottomNav: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E9EEE7', paddingTop: 9, paddingBottom: Platform.OS === 'ios' ? 18 : 10, paddingHorizontal: 8 },
