@@ -350,7 +350,7 @@ export default function App() {
     return (
       <SafeAreaView style={s.safe}>
         <View style={s.center}>
-          <ActivityIndicator size="large" color="#315CE8" />
+          <ActivityIndicator size="large" color="#167A55" />
           <Text style={s.helper}>Cargando Hogar Feliz...</Text>
         </View>
       </SafeAreaView>
@@ -360,7 +360,7 @@ export default function App() {
   return (
     <SafeAreaView style={s.safe}>
       <ExpoStatusBar style="dark" />
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F7FB" />
+      <StatusBar barStyle="dark-content" backgroundColor="#F3F8F5" />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -684,7 +684,7 @@ export default function App() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F5F7FB' },
+  safe: { flex: 1, backgroundColor: '#F3F8F5' },
   container: {
     flexGrow: 1,
     paddingHorizontal: 22,
@@ -703,7 +703,7 @@ const s = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 17,
-    backgroundColor: '#315CE8',
+    backgroundColor: '#167A55',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 5,
@@ -720,17 +720,17 @@ const s = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.5,
   },
-  tagline: { color: '#79839A', fontSize: 13, marginTop: 2 },
+  tagline: { color: '#718477', fontSize: 13, marginTop: 2 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 26,
     padding: 23,
     borderWidth: 1,
-    borderColor: '#E8ECF4',
+    borderColor: '#E0EAE2',
     elevation: 3,
   },
   eyebrow: {
-    color: '#315CE8',
+    color: '#167A55',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1.6,
@@ -743,15 +743,15 @@ const s = StyleSheet.create({
     letterSpacing: -0.8,
   },
   subtitle: {
-    color: '#7B8498',
+    color: '#718477',
     fontSize: 14,
     lineHeight: 21,
     marginTop: 8,
     marginBottom: 23,
   },
   input: {
-    backgroundColor: '#F7F8FC',
-    borderColor: '#E5E9F2',
+    backgroundColor: '#F5F9F5',
+    borderColor: '#DFEAE2',
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 15,
@@ -761,7 +761,7 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   primary: {
-    backgroundColor: '#315CE8',
+    backgroundColor: '#167A55',
     borderRadius: 14,
     minHeight: 52,
     alignItems: 'center',
@@ -776,20 +776,20 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#D8E0F5',
-    backgroundColor: '#F5F7FF',
+    borderColor: '#D4E7D9',
+    backgroundColor: '#F0F7F2',
   },
-  secondaryText: { color: '#315CE8', fontSize: 15, fontWeight: '700' },
+  secondaryText: { color: '#167A55', fontSize: 15, fontWeight: '700' },
   linkButton: { alignItems: 'center', paddingVertical: 17 },
   link: {
-    color: '#315CE8',
+    color: '#167A55',
     fontWeight: '700',
     fontSize: 13,
     textAlign: 'center',
   },
   footer: {
     textAlign: 'center',
-    color: '#A2A9B8',
+    color: '#91A397',
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.2,
@@ -812,7 +812,7 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   helper: {
-    color: '#7B8498',
+    color: '#718477',
     fontSize: 13,
     lineHeight: 19,
     marginBottom: 15,
@@ -824,28 +824,28 @@ const s = StyleSheet.create({
     gap: 10,
     marginVertical: 20,
   },
-  line: { height: 1, backgroundColor: '#E9EDF4', flex: 1 },
+  line: { height: 1, backgroundColor: '#E0EAE2', flex: 1 },
   orText: {
-    color: '#9AA2B3',
+    color: '#91A397',
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 1,
   },
   codeBox: {
-    backgroundColor: '#F2F5FF',
+    backgroundColor: '#EAF5EE',
     borderRadius: 16,
     padding: 16,
     marginBottom: 18,
     alignItems: 'center',
   },
   codeLabel: {
-    color: '#79839A',
+    color: '#718477',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1.2,
   },
   code: {
-    color: '#315CE8',
+    color: '#167A55',
     fontSize: 27,
     fontWeight: '900',
     letterSpacing: 3,
@@ -864,8 +864,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 11,
   },
-  tabActive: { backgroundColor: '#315CE8' },
-  tabText: { color: '#68738B', fontSize: 12, fontWeight: '700' },
+  tabActive: { backgroundColor: '#167A55' },
+  tabText: { color: '#64766A', fontSize: 12, fontWeight: '700' },
   tabTextActive: { color: '#fff' },
   empty: {
     color: '#8A93A6',
@@ -877,20 +877,20 @@ const s = StyleSheet.create({
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7F8FC',
+    backgroundColor: '#F5F9F5',
     borderWidth: 1,
-    borderColor: '#E9EDF4',
+    borderColor: '#E0EAE2',
     borderRadius: 13,
     padding: 14,
     marginTop: 9,
   },
   check: {
-    color: '#315CE8',
+    color: '#167A55',
     fontSize: 22,
     fontWeight: '700',
     marginRight: 12,
   },
   checkDone: { color: '#16834A' },
   itemText: { color: '#17213A', fontSize: 14, flex: 1 },
-  itemDone: { color: '#9AA2B3', textDecorationLine: 'line-through' },
+  itemDone: { color: '#91A397', textDecorationLine: 'line-through' },
 });
