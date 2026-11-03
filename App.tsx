@@ -53,6 +53,7 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [tab, setTab] = useState<'tasks' | 'shopping'>('tasks');
+  const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile'>('home');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -349,548 +350,302 @@ export default function App() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe}>
-        <View style={s.center}>
-          <ActivityIndicator size="large" color="#167A55" />
-          <Text style={s.helper}>Cargando Hogar Feliz...</Text>
+        <ExpoStatusBar style="dark" />
+        <View style={s.loadingWrap}>
+          <View style={s.brandMark}><Text style={s.brandMarkText}>⌂</Text></View>
+          <ActivityIndicator size="large" color="#247A58" />
+          <Text style={s.helper}>Preparando tu hogar...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const completedTasks = tasks.filter((task) => task.completed).length;
+  const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+  const BottomNav = () => (
+    <View style={s.bottomNav}>
+      {([
+        ['home', '⌂', 'Inicio'],
+        ['tasks', '✓', 'Tareas'],
+        ['shopping', '▤', 'Compras'],
+        ['profile', '◉', 'Perfil'],
+      ] as const).map(([key, glyph, label]) => (
+        <TouchableOpacity key={key} style={s.navItem} onPress={() => setScreen(key)}>
+          <View style={[s.navIconWrap, screen === key && s.navIconActive]}>
+            <Text style={[s.navGlyph, screen === key && s.navGlyphActive]}>{glyph}</Text>
+          </View>
+          <Text style={[s.navLabel, screen === key && s.navLabelActive]}>{label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
   return (
     <SafeAreaView style={s.safe}>
       <ExpoStatusBar style="dark" />
-      <StatusBar barStyle="dark-content" backgroundColor="#F3F8F5" />
-
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={s.container}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={s.brandRow}>
-            <View style={s.logo}>
-              <Text style={s.logoText}>⌂</Text>
-            </View>
-            <View>
+      <StatusBar barStyle="dark-content" backgroundColor="#F6F8F5" />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {!sessionEmail ? (
+          <ScrollView contentContainerStyle={s.authPage} keyboardShouldPersistTaps="handled">
+            <View style={s.authBrand}>
+              <View style={s.brandMark}><Text style={s.brandMarkText}>⌂</Text></View>
               <Text style={s.brand}>Hogar Feliz</Text>
               <Text style={s.tagline}>Una casa, un equipo.</Text>
             </View>
-          </View>
-
-          {!sessionEmail ? (
-            <View style={s.card}>
+            <View style={s.authCard}>
               <Text style={s.eyebrow}>BIENVENIDO A CASA</Text>
-              <Text style={s.title}>
-                {mode === 'signup' ? 'Crea tu cuenta' : 'Qué bueno verte'}
-              </Text>
-              <Text style={s.subtitle}>
-                {mode === 'signup'
-                  ? 'Organiza tu hogar en equipo.'
-                  : 'Entra para organizar las tareas de casa.'}
-              </Text>
-
-              {mode === 'signup' && (
-                <TextInput
-                  style={s.input}
-                  placeholder="Nombre para mostrar"
-                  placeholderTextColor="#9299A8"
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                />
-              )}
-
-              <TextInput
-                style={s.input}
-                placeholder="Correo electrónico"
-                placeholderTextColor="#9299A8"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                value={email}
-                onChangeText={setEmail}
-              />
-
-              <TextInput
-                style={s.input}
-                placeholder="Contraseña (mínimo 6 caracteres)"
-                placeholderTextColor="#9299A8"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-
-              <TouchableOpacity
-                style={s.primary}
-                onPress={mode === 'signup' ? signUp : signIn}
-                disabled={busy}
-              >
-                {busy ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={s.primaryText}>
-                    {mode === 'signup'
-                      ? 'Crear cuenta  →'
-                      : 'Iniciar sesión  →'}
-                  </Text>
-                )}
+              <Text style={s.authTitle}>{mode === 'signup' ? 'Tu hogar empieza aquí.' : 'Qué bueno verte.'}</Text>
+              <Text style={s.subtitle}>{mode === 'signup' ? 'Crea tu cuenta y empieza a organizarte en equipo.' : 'Entra y pongamos todo en orden, juntos.'}</Text>
+              {mode === 'signup' && <TextInput style={s.input} placeholder="Tu nombre" placeholderTextColor="#89948D" value={displayName} onChangeText={setDisplayName} />}
+              <TextInput style={s.input} placeholder="Correo electrónico" placeholderTextColor="#89948D" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
+              <TextInput style={s.input} placeholder="Contraseña (mínimo 6 caracteres)" placeholderTextColor="#89948D" secureTextEntry value={password} onChangeText={setPassword} />
+              <TouchableOpacity style={s.primaryButton} onPress={mode === 'signup' ? signUp : signIn} disabled={busy}>
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>{mode === 'signup' ? 'Crear mi cuenta  →' : 'Iniciar sesión  →'}</Text>}
               </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() =>
-                  setMode(mode === 'signup' ? 'signin' : 'signup')
-                }
-                style={s.linkButton}
-              >
-                <Text style={s.link}>
-                  {mode === 'signup'
-                    ? 'Ya tengo cuenta · Iniciar sesión'
-                    : '¿Primera vez aquí? Crear cuenta'}
-                </Text>
+              <TouchableOpacity onPress={() => setMode(mode === 'signup' ? 'signin' : 'signup')} style={s.authLinkWrap}>
+                <Text style={s.link}>{mode === 'signup' ? 'Ya tengo cuenta · Iniciar sesión' : '¿Primera vez? Crear una cuenta'}</Text>
               </TouchableOpacity>
             </View>
-          ) : household ? (
-            <View style={s.card}>
-              <Text style={s.eyebrow}>TU HOGAR</Text>
-              <Text style={s.title}>{household.name}</Text>
-              <Text style={s.subtitle}>
-                Sesión iniciada como {sessionEmail}
-              </Text>
-
-              <View style={s.codeBox}>
-                <Text style={s.codeLabel}>CÓDIGO FAMILIAR</Text>
-                <Text style={s.code}>{household.invite_code}</Text>
-                <Text style={s.helper}>
-                  Comparte este código para invitar a tu familia.
-                </Text>
+            <Text style={s.footer}>HECHO PARA VIVIR MEJOR EN EQUIPO</Text>
+          </ScrollView>
+        ) : !household ? (
+          <ScrollView contentContainerStyle={s.setupPage} keyboardShouldPersistTaps="handled">
+            <View style={s.setupTop}>
+              <View style={s.brandMark}><Text style={s.brandMarkText}>⌂</Text></View>
+              <Text style={s.brand}>Hogar Feliz</Text>
+            </View>
+            <View style={s.setupIntro}>
+              <Text style={s.eyebrow}>UN NUEVO COMIENZO</Text>
+              <Text style={s.authTitle}>Armemos tu equipo.</Text>
+              <Text style={s.subtitle}>Crea el espacio de tu familia o únete con un código que te compartieron.</Text>
+            </View>
+            <View style={s.setupCard}>
+              <Text style={s.sectionTitle}>Crear un hogar</Text>
+              <TextInput style={s.input} placeholder="Tu nombre para mostrar" placeholderTextColor="#89948D" value={displayName} onChangeText={setDisplayName} />
+              <TextInput style={s.input} placeholder="Nombre de la familia" placeholderTextColor="#89948D" value={familyName} onChangeText={setFamilyName} />
+              <TouchableOpacity style={s.primaryButton} onPress={createFamily} disabled={busy}>
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>＋ Crear hogar</Text>}
+              </TouchableOpacity>
+            </View>
+            <View style={s.joinCard}>
+              <Text style={s.sectionTitle}>¿Ya tienes un código?</Text>
+              <TextInput style={s.input} placeholder="Escribe el código familiar" placeholderTextColor="#89948D" autoCapitalize="characters" value={inviteCode} onChangeText={setInviteCode} />
+              <TouchableOpacity style={s.outlineButton} onPress={joinFamily} disabled={busy}>
+                <Text style={s.outlineButtonText}>Unirme a un hogar  →</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={signOut} style={s.authLinkWrap}><Text style={s.link}>Cerrar sesión</Text></TouchableOpacity>
+          </ScrollView>
+        ) : (
+          <>
+            <ScrollView style={s.mainScroll} contentContainerStyle={s.mainContent} keyboardShouldPersistTaps="handled">
+              <View style={s.topBar}>
+                <View style={s.topBrand}>
+                  <View style={s.smallBrandMark}><Text style={s.smallBrandMarkText}>⌂</Text></View>
+                  <View>
+                    <Text style={s.topBrandName}>Hogar Feliz</Text>
+                    <Text style={s.topBrandCaption}>TU ESPACIO EN EQUIPO</Text>
+                  </View>
+                </View>
+                <TouchableOpacity style={s.avatarButton} onPress={() => setScreen('profile')}>
+                  <Text style={s.avatarText}>{(displayName || sessionEmail || 'H').charAt(0).toUpperCase()}</Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={s.tabs}>
-                <TouchableOpacity
-                  style={[s.tab, tab === 'tasks' && s.tabActive]}
-                  onPress={() => setTab('tasks')}
-                >
-                  <Text
-                    style={[
-                      s.tabText,
-                      tab === 'tasks' && s.tabTextActive,
-                    ]}
-                  >
-                    ✓ Tareas ({tasks.length})
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[s.tab, tab === 'shopping' && s.tabActive]}
-                  onPress={() => setTab('shopping')}
-                >
-                  <Text
-                    style={[
-                      s.tabText,
-                      tab === 'shopping' && s.tabTextActive,
-                    ]}
-                  >
-                    🛒 Compras ({items.length})
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {tab === 'tasks' ? (
+              {screen === 'home' && (
                 <>
-                  <Text style={s.sectionTitle}>Tareas del hogar</Text>
-                  <TextInput
-                    style={s.input}
-                    placeholder="Ej. Lavar los platos"
-                    placeholderTextColor="#9299A8"
-                    value={taskTitle}
-                    onChangeText={setTaskTitle}
-                  />
-                  <TouchableOpacity
-                    style={s.primary}
-                    onPress={addTask}
-                    disabled={busy}
-                  >
-                    <Text style={s.primaryText}>＋ Añadir tarea</Text>
-                  </TouchableOpacity>
-
+                  <View style={s.welcomeBlock}>
+                    <Text style={s.dateEyebrow}>TU RESUMEN FAMILIAR</Text>
+                    <Text style={s.pageTitle}>¡Hola, {displayName.trim() || 'equipo'}! 👋</Text>
+                    <Text style={s.pageSubtitle}>Un poquito cada uno hace la diferencia.</Text>
+                  </View>
+                  <View style={s.heroCard}>
+                    <View style={s.heroTopRow}>
+                      <View>
+                        <Text style={s.heroKicker}>EL HOGAR DE HOY</Text>
+                        <Text style={s.heroTitle}>{household.name}</Text>
+                      </View>
+                      <View style={s.heroHomeIcon}><Text style={s.heroHomeGlyph}>⌂</Text></View>
+                    </View>
+                    <View style={s.progressHeading}>
+                      <Text style={s.progressTitle}>Progreso de tareas</Text>
+                      <Text style={s.progressPercent}>{progress}%</Text>
+                    </View>
+                    <View style={s.progressTrack}><View style={[s.progressFill, { width: progress + '%' }]} /></View>
+                    <Text style={s.progressCaption}>{completedTasks} de {tasks.length} tareas completadas</Text>
+                  </View>
+                  <View style={s.statsRow}>
+                    <TouchableOpacity style={s.statCard} onPress={() => setScreen('tasks')}>
+                      <View style={[s.statIcon, { backgroundColor: '#E7F3EA' }]}><Text style={s.statGlyph}>✓</Text></View>
+                      <Text style={s.statNumber}>{tasks.length - completedTasks}</Text>
+                      <Text style={s.statLabel}>Pendientes</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.statCard} onPress={() => setScreen('shopping')}>
+                      <View style={[s.statIcon, { backgroundColor: '#FFF1DA' }]}><Text style={[s.statGlyph, { color: '#B77920' }]}>▤</Text></View>
+                      <Text style={s.statNumber}>{items.filter((item) => !item.completed).length}</Text>
+                      <Text style={s.statLabel}>Por comprar</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={s.sectionHeader}>
+                    <View><Text style={s.sectionTitle}>Lo que sigue</Text><Text style={s.sectionHint}>Las tareas más recientes</Text></View>
+                    <TouchableOpacity onPress={() => setScreen('tasks')}><Text style={s.seeAll}>Ver todas  →</Text></TouchableOpacity>
+                  </View>
                   {tasks.length === 0 ? (
-                    <Text style={s.empty}>
-                      Aún no hay tareas. ¡Añade la primera!
-                    </Text>
-                  ) : (
-                    tasks.map((task) => (
-                      <TouchableOpacity
-                        key={task.id}
-                        style={s.listItem}
-                        onPress={() => toggleTask(task)}
-                      >
-                        <Text
-                          style={[
-                            s.check,
-                            task.completed && s.checkDone,
-                          ]}
-                        >
-                          {task.completed ? '✓' : '○'}
-                        </Text>
-                        <Text
-                          style={[
-                            s.itemText,
-                            task.completed && s.itemDone,
-                          ]}
-                        >
-                          {task.title}
-                        </Text>
-                      </TouchableOpacity>
-                    ))
-                  )}
-                </>
-              ) : (
-                <>
-                  <Text style={s.sectionTitle}>Lista de compras</Text>
-                  <TextInput
-                    style={s.input}
-                    placeholder="Ej. Leche"
-                    placeholderTextColor="#9299A8"
-                    value={itemName}
-                    onChangeText={setItemName}
-                  />
-                  <TouchableOpacity
-                    style={s.primary}
-                    onPress={addItem}
-                    disabled={busy}
-                  >
-                    <Text style={s.primaryText}>＋ Añadir producto</Text>
-                  </TouchableOpacity>
-
-                  {items.length === 0 ? (
-                    <Text style={s.empty}>
-                      La lista está vacía. Añade lo que haga falta.
-                    </Text>
-                  ) : (
-                    items.map((item) => (
-                      <TouchableOpacity
-                        key={item.id}
-                        style={s.listItem}
-                        onPress={() => toggleItem(item)}
-                      >
-                        <Text
-                          style={[
-                            s.check,
-                            item.completed && s.checkDone,
-                          ]}
-                        >
-                          {item.completed ? '✓' : '○'}
-                        </Text>
-                        <Text
-                          style={[
-                            s.itemText,
-                            item.completed && s.itemDone,
-                          ]}
-                        >
-                          {item.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))
-                  )}
+                    <View style={s.emptyCard}><Text style={s.emptyIcon}>✦</Text><Text style={s.emptyTitle}>Todo empieza con una tarea</Text><Text style={s.emptyText}>Agrega la primera y organicen el día en familia.</Text><TouchableOpacity style={s.inlineAction} onPress={() => setScreen('tasks')}><Text style={s.inlineActionText}>Crear primera tarea  →</Text></TouchableOpacity></View>
+                  ) : tasks.slice(0, 3).map((task) => (
+                    <TouchableOpacity key={task.id} style={s.taskCard} onPress={() => toggleTask(task)}>
+                      <View style={[s.taskCheck, task.completed && s.taskCheckDone]}><Text style={s.taskCheckText}>{task.completed ? '✓' : ''}</Text></View>
+                      <View style={s.taskCopy}><Text style={[s.taskName, task.completed && s.taskNameDone]}>{task.title}</Text><Text style={s.taskMeta}>{task.completed ? 'Completada' : 'Pendiente'}</Text></View>
+                      <Text style={s.taskArrow}>›</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <View style={s.inviteStrip}>
+                    <View style={s.inviteCopy}><Text style={s.inviteTitle}>¿Falta alguien en el equipo?</Text><Text style={s.inviteSubtitle}>Comparte el código familiar.</Text></View>
+                    <TouchableOpacity style={s.inviteButton} onPress={() => setScreen('profile')}><Text style={s.inviteButtonText}>Ver código</Text></TouchableOpacity>
+                  </View>
                 </>
               )}
 
-              <TouchableOpacity
-                onPress={signOut}
-                style={s.linkButton}
-                disabled={busy}
-              >
-                <Text style={s.link}>Cerrar sesión</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={s.card}>
-              <View style={s.successIcon}>
-                <Text style={{ fontSize: 28, color: '#16834A' }}>✓</Text>
-              </View>
-              <Text style={s.title}>¡Hola!</Text>
-              <Text style={s.subtitle}>
-                Sesión iniciada como {sessionEmail}
-              </Text>
-              <Text style={s.sectionTitle}>Tu familia</Text>
-              <Text style={s.helper}>
-                Crea un hogar o únete con un código familiar.
-              </Text>
+              {screen === 'tasks' && (
+                <>
+                  <View style={s.welcomeBlock}><Text style={s.dateEyebrow}>ORGANIZACIÓN DEL HOGAR</Text><Text style={s.pageTitle}>Tareas ✓</Text><Text style={s.pageSubtitle}>Cada pequeña ayuda cuenta.</Text></View>
+                  <View style={s.addCard}><Text style={s.sectionTitle}>Nueva tarea</Text><TextInput style={s.input} placeholder="Ej. Lavar los platos" placeholderTextColor="#89948D" value={taskTitle} onChangeText={setTaskTitle} /><TouchableOpacity style={s.primaryButton} onPress={addTask} disabled={busy}><Text style={s.primaryButtonText}>＋ Añadir tarea</Text></TouchableOpacity></View>
+                  <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>Todas las tareas</Text><Text style={s.sectionHint}>{completedTasks} completadas · {tasks.length - completedTasks} pendientes</Text></View></View>
+                  {tasks.length === 0 ? <View style={s.emptyCard}><Text style={s.emptyIcon}>✓</Text><Text style={s.emptyTitle}>Todavía no hay tareas</Text><Text style={s.emptyText}>Añade una arriba para empezar.</Text></View> : tasks.map((task) => <TouchableOpacity key={task.id} style={s.taskCard} onPress={() => toggleTask(task)}><View style={[s.taskCheck, task.completed && s.taskCheckDone]}><Text style={s.taskCheckText}>{task.completed ? '✓' : ''}</Text></View><View style={s.taskCopy}><Text style={[s.taskName, task.completed && s.taskNameDone]}>{task.title}</Text><Text style={s.taskMeta}>{task.completed ? 'Completada' : 'Toca para marcar como hecha'}</Text></View><Text style={s.taskArrow}>›</Text></TouchableOpacity>)}
+                </>
+              )}
 
-              <TextInput
-                style={s.input}
-                placeholder="Nombre para mostrar"
-                placeholderTextColor="#9299A8"
-                value={displayName}
-                onChangeText={setDisplayName}
-              />
-              <TextInput
-                style={s.input}
-                placeholder="Nombre de la familia"
-                placeholderTextColor="#9299A8"
-                value={familyName}
-                onChangeText={setFamilyName}
-              />
-              <TouchableOpacity
-                style={s.primary}
-                onPress={createFamily}
-                disabled={busy}
-              >
-                {busy ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={s.primaryText}>＋ Crear familia</Text>
-                )}
-              </TouchableOpacity>
+              {screen === 'shopping' && (
+                <>
+                  <View style={s.welcomeBlock}><Text style={s.dateEyebrow}>LISTA COMPARTIDA</Text><Text style={s.pageTitle}>Compras ▤</Text><Text style={s.pageSubtitle}>Que no se quede nada por fuera.</Text></View>
+                  <View style={s.addCard}><Text style={s.sectionTitle}>Agregar producto</Text><TextInput style={s.input} placeholder="Ej. Leche, arroz, huevos..." placeholderTextColor="#89948D" value={itemName} onChangeText={setItemName} /><TouchableOpacity style={s.primaryButton} onPress={addItem} disabled={busy}><Text style={s.primaryButtonText}>＋ Añadir a la lista</Text></TouchableOpacity></View>
+                  <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>Lista del hogar</Text><Text style={s.sectionHint}>{items.filter((item) => !item.completed).length} por comprar · {items.filter((item) => item.completed).length} listos</Text></View></View>
+                  {items.length === 0 ? <View style={s.emptyCard}><Text style={s.emptyIcon}>▤</Text><Text style={s.emptyTitle}>Tu lista está vacía</Text><Text style={s.emptyText}>Agrega lo que necesitan comprar.</Text></View> : items.map((item) => <TouchableOpacity key={item.id} style={s.taskCard} onPress={() => toggleItem(item)}><View style={[s.taskCheck, item.completed && s.taskCheckDone]}><Text style={s.taskCheckText}>{item.completed ? '✓' : ''}</Text></View><View style={s.taskCopy}><Text style={[s.taskName, item.completed && s.taskNameDone]}>{item.name}</Text><Text style={s.taskMeta}>{item.completed ? 'Ya está en casa' : 'Pendiente de comprar'}</Text></View><Text style={s.taskArrow}>›</Text></TouchableOpacity>)}
+                </>
+              )}
 
-              <View style={s.orLine}>
-                <View style={s.line} />
-                <Text style={s.orText}>O ÚNETE A UNA</Text>
-                <View style={s.line} />
-              </View>
-
-              <TextInput
-                style={s.input}
-                placeholder="Código familiar"
-                placeholderTextColor="#9299A8"
-                autoCapitalize="characters"
-                value={inviteCode}
-                onChangeText={setInviteCode}
-              />
-              <TouchableOpacity
-                style={s.secondary}
-                onPress={joinFamily}
-                disabled={busy}
-              >
-                <Text style={s.secondaryText}>Unirme con código</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={signOut}
-                style={s.linkButton}
-                disabled={busy}
-              >
-                <Text style={s.link}>Cerrar sesión</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <Text style={s.footer}>HECHO PARA VIVIR MEJOR EN EQUIPO</Text>
-        </ScrollView>
+              {screen === 'profile' && (
+                <>
+                  <View style={s.welcomeBlock}><Text style={s.dateEyebrow}>TU CUENTA Y TU FAMILIA</Text><Text style={s.pageTitle}>Perfil</Text><Text style={s.pageSubtitle}>Todo lo importante de tu hogar.</Text></View>
+                  <View style={s.profileCard}><View style={s.profileAvatar}><Text style={s.profileAvatarText}>{(displayName || sessionEmail || 'H').charAt(0).toUpperCase()}</Text></View><Text style={s.profileName}>{displayName.trim() || 'Integrante del hogar'}</Text><Text style={s.profileEmail}>{sessionEmail}</Text></View>
+                  <View style={s.codeProfileCard}><Text style={s.heroKicker}>CÓDIGO PARA INVITAR</Text><Text style={s.codeProfile}>{household.invite_code}</Text><Text style={s.sectionHint}>Compártelo con las personas que quieras sumar a {household.name}.</Text></View>
+                  <View style={s.profileInfo}><Text style={s.profileInfoLabel}>MI HOGAR</Text><Text style={s.profileInfoValue}>{household.name}</Text></View>
+                  <TouchableOpacity style={s.logoutButton} onPress={signOut} disabled={busy}><Text style={s.logoutText}>Cerrar sesión</Text></TouchableOpacity>
+                </>
+              )}
+              <Text style={s.footer}>HECHO PARA VIVIR MEJOR EN EQUIPO</Text>
+            </ScrollView>
+            <BottomNav />
+          </>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F3F8F5' },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 22,
-    paddingTop: 34,
-    paddingBottom: 28,
-    justifyContent: 'center',
-  },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 28,
-  },
-  logo: {
-    width: 52,
-    height: 52,
-    borderRadius: 17,
-    backgroundColor: '#167A55',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 5,
-  },
-  logoText: {
-    fontSize: 34,
-    color: '#fff',
-    fontWeight: '700',
-    marginTop: -5,
-  },
-  brand: {
-    color: '#17213A',
-    fontSize: 23,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  tagline: { color: '#718477', fontSize: 13, marginTop: 2 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 26,
-    padding: 23,
-    borderWidth: 1,
-    borderColor: '#E0EAE2',
-    elevation: 3,
-  },
-  eyebrow: {
-    color: '#167A55',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.6,
-    marginBottom: 10,
-  },
-  title: {
-    color: '#17213A',
-    fontSize: 29,
-    fontWeight: '800',
-    letterSpacing: -0.8,
-  },
-  subtitle: {
-    color: '#718477',
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 8,
-    marginBottom: 23,
-  },
-  input: {
-    backgroundColor: '#F5F9F5',
-    borderColor: '#DFEAE2',
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    color: '#17213A',
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  primary: {
-    backgroundColor: '#167A55',
-    borderRadius: 14,
-    minHeight: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 5,
-    elevation: 2,
-  },
-  primaryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  secondary: {
-    borderRadius: 14,
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#D4E7D9',
-    backgroundColor: '#F0F7F2',
-  },
-  secondaryText: { color: '#167A55', fontSize: 15, fontWeight: '700' },
-  linkButton: { alignItems: 'center', paddingVertical: 17 },
-  link: {
-    color: '#167A55',
-    fontWeight: '700',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  footer: {
-    textAlign: 'center',
-    color: '#91A397',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginTop: 24,
-  },
-  successIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: '#E8F8EF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    color: '#17213A',
-    fontSize: 17,
-    fontWeight: '800',
-    marginTop: 3,
-    marginBottom: 10,
-  },
-  helper: {
-    color: '#718477',
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 15,
-    marginTop: 8,
-  },
-  orLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginVertical: 20,
-  },
-  line: { height: 1, backgroundColor: '#E0EAE2', flex: 1 },
-  orText: {
-    color: '#91A397',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  codeBox: {
-    backgroundColor: '#EAF5EE',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 18,
-    alignItems: 'center',
-  },
-  codeLabel: {
-    color: '#718477',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-  },
-  code: {
-    color: '#167A55',
-    fontSize: 27,
-    fontWeight: '900',
-    letterSpacing: 3,
-    marginTop: 7,
-  },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F5FA',
-    padding: 4,
-    borderRadius: 14,
-    marginBottom: 22,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 11,
-  },
-  tabActive: { backgroundColor: '#167A55' },
-  tabText: { color: '#64766A', fontSize: 12, fontWeight: '700' },
-  tabTextActive: { color: '#fff' },
-  empty: {
-    color: '#8A93A6',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 24,
-    lineHeight: 20,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F9F5',
-    borderWidth: 1,
-    borderColor: '#E0EAE2',
-    borderRadius: 13,
-    padding: 14,
-    marginTop: 9,
-  },
-  check: {
-    color: '#167A55',
-    fontSize: 22,
-    fontWeight: '700',
-    marginRight: 12,
-  },
-  checkDone: { color: '#16834A' },
-  itemText: { color: '#17213A', fontSize: 14, flex: 1 },
-  itemDone: { color: '#91A397', textDecorationLine: 'line-through' },
+  safe: { flex: 1, backgroundColor: '#F6F8F5' },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18 },
+  brandMark: { width: 64, height: 64, borderRadius: 22, backgroundColor: '#247A58', alignItems: 'center', justifyContent: 'center' },
+  brandMarkText: { color: '#fff', fontSize: 42, fontWeight: '800', marginTop: -6 },
+  authPage: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: 48, paddingBottom: 36 },
+  authBrand: { alignItems: 'center', marginBottom: 32 },
+  brand: { color: '#18372B', fontSize: 28, fontWeight: '900', letterSpacing: -0.8, marginTop: 14 },
+  tagline: { color: '#7B8B80', fontSize: 14, marginTop: 5 },
+  authCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 24, borderWidth: 1, borderColor: '#E8EDE7' },
+  eyebrow: { color: '#247A58', fontSize: 10, fontWeight: '900', letterSpacing: 1.8, marginBottom: 12 },
+  authTitle: { color: '#18372B', fontSize: 31, lineHeight: 37, fontWeight: '900', letterSpacing: -1 },
+  subtitle: { color: '#7B8B80', fontSize: 14, lineHeight: 21, marginTop: 9, marginBottom: 22 },
+  input: { backgroundColor: '#F7F9F6', borderColor: '#E5EBE3', borderWidth: 1, borderRadius: 15, paddingHorizontal: 16, paddingVertical: 15, color: '#18372B', fontSize: 14, marginBottom: 12 },
+  primaryButton: { backgroundColor: '#247A58', borderRadius: 16, minHeight: 54, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  authLinkWrap: { alignItems: 'center', paddingVertical: 18 },
+  link: { color: '#247A58', fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  footer: { color: '#9AA79D', fontSize: 9, fontWeight: '800', letterSpacing: 1.5, textAlign: 'center', marginTop: 28, marginBottom: 8 },
+  setupPage: { flexGrow: 1, padding: 22, paddingTop: 38, paddingBottom: 28 },
+  setupTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 34 },
+  setupIntro: { marginBottom: 20 },
+  setupCard: { backgroundColor: '#FFFFFF', borderRadius: 23, padding: 20, borderWidth: 1, borderColor: '#E8EDE7', marginBottom: 14 },
+  joinCard: { backgroundColor: '#EDF4ED', borderRadius: 23, padding: 20 },
+  sectionTitle: { color: '#18372B', fontSize: 18, fontWeight: '900', letterSpacing: -0.3, marginBottom: 7 },
+  outlineButton: { borderWidth: 1.5, borderColor: '#247A58', borderRadius: 15, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
+  outlineButtonText: { color: '#247A58', fontSize: 14, fontWeight: '800' },
+  mainScroll: { flex: 1 },
+  mainContent: { paddingHorizontal: 21, paddingTop: 17, paddingBottom: 24 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
+  topBrand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  smallBrandMark: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#247A58', alignItems: 'center', justifyContent: 'center' },
+  smallBrandMarkText: { color: '#fff', fontSize: 27, fontWeight: '800', marginTop: -4 },
+  topBrandName: { color: '#18372B', fontSize: 17, fontWeight: '900' },
+  topBrandCaption: { color: '#94A198', fontSize: 8, fontWeight: '900', letterSpacing: 1.2, marginTop: 2 },
+  avatarButton: { width: 42, height: 42, borderRadius: 15, backgroundColor: '#DDECE0', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#247A58', fontSize: 17, fontWeight: '900' },
+  welcomeBlock: { marginBottom: 21 },
+  dateEyebrow: { color: '#8B9A8F', fontSize: 10, fontWeight: '900', letterSpacing: 1.5, marginBottom: 8 },
+  pageTitle: { color: '#18372B', fontSize: 30, fontWeight: '900', letterSpacing: -1 },
+  pageSubtitle: { color: '#819087', fontSize: 14, marginTop: 6 },
+  heroCard: { backgroundColor: '#247A58', borderRadius: 25, padding: 21, marginBottom: 15 },
+  heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  heroKicker: { color: '#D1E5D5', fontSize: 9, fontWeight: '900', letterSpacing: 1.5, marginBottom: 7 },
+  heroTitle: { color: '#FFFFFF', fontSize: 23, fontWeight: '900', letterSpacing: -0.5 },
+  heroHomeIcon: { width: 48, height: 48, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
+  heroHomeGlyph: { color: '#FFFFFF', fontSize: 30, marginTop: -5 },
+  progressHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  progressTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  progressPercent: { color: '#FFFFFF', fontSize: 19, fontWeight: '900' },
+  progressTrack: { height: 8, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 10, overflow: 'hidden' },
+  progressFill: { height: 8, backgroundColor: '#D7F0C8', borderRadius: 10 },
+  progressCaption: { color: '#D1E5D5', fontSize: 11, marginTop: 9 },
+  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 27 },
+  statCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#E9EEE7' },
+  statIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  statGlyph: { color: '#247A58', fontSize: 18, fontWeight: '900' },
+  statNumber: { color: '#18372B', fontSize: 25, fontWeight: '900' },
+  statLabel: { color: '#87948B', fontSize: 11, marginTop: 2 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13, marginTop: 3 },
+  sectionHint: { color: '#8B9990', fontSize: 11, marginTop: 3, lineHeight: 16 },
+  seeAll: { color: '#247A58', fontSize: 11, fontWeight: '900' },
+  emptyCard: { backgroundColor: '#FFFFFF', borderRadius: 21, padding: 23, alignItems: 'center', borderWidth: 1, borderColor: '#E9EEE7' },
+  emptyIcon: { color: '#247A58', fontSize: 28, marginBottom: 10 },
+  emptyTitle: { color: '#18372B', fontSize: 15, fontWeight: '900', textAlign: 'center' },
+  emptyText: { color: '#89968D', fontSize: 12, textAlign: 'center', lineHeight: 18, marginTop: 6 },
+  inlineAction: { paddingVertical: 12 },
+  inlineActionText: { color: '#247A58', fontSize: 12, fontWeight: '900' },
+  taskCard: { backgroundColor: '#FFFFFF', borderRadius: 17, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 9, borderWidth: 1, borderColor: '#E9EEE7' },
+  taskCheck: { width: 25, height: 25, borderRadius: 9, borderWidth: 1.5, borderColor: '#B8C9BB', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  taskCheckDone: { backgroundColor: '#247A58', borderColor: '#247A58' },
+  taskCheckText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  taskCopy: { flex: 1 },
+  taskName: { color: '#253B30', fontSize: 13, fontWeight: '800' },
+  taskNameDone: { color: '#9AA69D', textDecorationLine: 'line-through' },
+  taskMeta: { color: '#9AA69D', fontSize: 10, marginTop: 4 },
+  taskArrow: { color: '#A9B5AC', fontSize: 24, marginLeft: 8 },
+  inviteStrip: { backgroundColor: '#EAF2E9', borderRadius: 19, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 17 },
+  inviteCopy: { flex: 1, paddingRight: 8 },
+  inviteTitle: { color: '#234333', fontSize: 12, fontWeight: '900' },
+  inviteSubtitle: { color: '#819087', fontSize: 10, marginTop: 4 },
+  inviteButton: { backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingVertical: 10, borderRadius: 12 },
+  inviteButtonText: { color: '#247A58', fontSize: 10, fontWeight: '900' },
+  addCard: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 18, borderWidth: 1, borderColor: '#E9EEE7', marginBottom: 24 },
+  profileCard: { backgroundColor: '#FFFFFF', borderRadius: 23, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#E9EEE7', marginBottom: 14 },
+  profileAvatar: { width: 66, height: 66, borderRadius: 23, backgroundColor: '#DDECE0', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  profileAvatarText: { color: '#247A58', fontSize: 27, fontWeight: '900' },
+  profileName: { color: '#18372B', fontSize: 18, fontWeight: '900' },
+  profileEmail: { color: '#89968D', fontSize: 12, marginTop: 5 },
+  codeProfileCard: { backgroundColor: '#247A58', borderRadius: 22, padding: 21, alignItems: 'center', marginBottom: 14 },
+  codeProfile: { color: '#FFFFFF', fontSize: 30, fontWeight: '900', letterSpacing: 4, marginVertical: 7 },
+  profileInfo: { backgroundColor: '#FFFFFF', borderRadius: 17, padding: 17, borderWidth: 1, borderColor: '#E9EEE7' },
+  profileInfoLabel: { color: '#95A198', fontSize: 9, fontWeight: '900', letterSpacing: 1.3, marginBottom: 7 },
+  profileInfoValue: { color: '#18372B', fontSize: 15, fontWeight: '800' },
+  logoutButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#E5CFCB', alignItems: 'center', justifyContent: 'center', marginTop: 17, backgroundColor: '#FFF9F8' },
+  logoutText: { color: '#B65D50', fontSize: 13, fontWeight: '900' },
+  bottomNav: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E9EEE7', paddingTop: 9, paddingBottom: Platform.OS === 'ios' ? 18 : 10, paddingHorizontal: 8 },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  navIconWrap: { width: 34, height: 29, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  navIconActive: { backgroundColor: '#E6F1E7' },
+  navGlyph: { color: '#9AA79D', fontSize: 20, fontWeight: '800' },
+  navGlyphActive: { color: '#247A58' },
+  navLabel: { color: '#9AA79D', fontSize: 9, fontWeight: '700' },
+  navLabelActive: { color: '#247A58', fontWeight: '900' },
 });
