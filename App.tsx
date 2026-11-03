@@ -56,30 +56,40 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const loadHousehold = useCallback(async (id: string) => {
-    const { data: membership, error: memberError } = await supabase
-      .from('household_members')
-      .select('household_id')
-      .eq('user_id', id)
-      .limit(1)
-      .maybeSingle();
+  const loadHousehold = useCallback(async (id: string, preferredHouseholdId?: string) => {
+    let householdId = preferredHouseholdId;
 
-    if (memberError) throw memberError;
+    // Después de crear/unirse, usa directamente el UUID devuelto por la función RPC.
+    // En inicios de sesión posteriores, recupera la membresía habitual.
+    if (!householdId) {
+      const { data: membership, error: memberError } = await supabase
+        .from('household_members')
+        .select('household_id')
+        .eq('user_id', id)
+        .limit(1)
+        .maybeSingle();
 
-    if (!membership) {
-      setHousehold(null);
-      setTasks([]);
-      setItems([]);
-      return;
+      if (memberError) throw memberError;
+
+      if (!membership?.household_id) {
+        setHousehold(null);
+        setTasks([]);
+        setItems([]);
+        return;
+      }
+      householdId = membership.household_id;
     }
 
     const { data: home, error: homeError } = await supabase
       .from('households')
       .select('id, name, invite_code')
-      .eq('id', membership.household_id)
-      .single();
+      .eq('id', householdId)
+      .maybeSingle();
 
     if (homeError) throw homeError;
+    if (!home) {
+      throw new Error('El hogar se creó, pero no se pudo cargar. Revisa los permisos de lectura de households.');
+    }
 
     setHousehold(home as Household);
     await loadLists(home.id);
@@ -177,11 +187,16 @@ export default function App() {
 
   const signIn = () =>
     run(async () => {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
       if (error) throw error;
+      const user = data.session?.user;
+      if (!user) throw new Error('No se pudo recuperar la sesión. Inténtalo otra vez.');
+      setUserId(user.id);
+      setSessionEmail(user.email ?? email.trim());
+      await loadHousehold(user.id);
     });
 
   const signUp = () =>
@@ -219,7 +234,7 @@ export default function App() {
 
       const code = Math.random().toString(36).slice(2, 8).toUpperCase();
 
-      const { error } = await supabase.rpc('create_household', {
+      const { data: householdId, error } = await supabase.rpc('create_household', {
         p_name: familyName.trim(),
         p_invite_code: code,
         p_display_name: displayName.trim() || email.split('@')[0],
@@ -227,8 +242,9 @@ export default function App() {
 
       if (error) throw error;
       if (!userId) throw new Error('Vuelve a iniciar sesión.');
+      if (!householdId) throw new Error('La familia se creó, pero Supabase no devolvió su identificador.');
 
-      await loadHousehold(userId);
+      await loadHousehold(userId, householdId as string);
 
       Alert.alert(
         '¡Familia creada!',
@@ -242,15 +258,16 @@ export default function App() {
         throw new Error('Escribe el código familiar.');
       }
 
-      const { error } = await supabase.rpc('join_household_by_code', {
+      const { data: householdId, error } = await supabase.rpc('join_household_by_code', {
         p_code: inviteCode.trim().toUpperCase(),
         p_display_name: displayName.trim() || email.split('@')[0],
       });
 
       if (error) throw error;
       if (!userId) throw new Error('Vuelve a iniciar sesión.');
+      if (!householdId) throw new Error('La unión se completó, pero Supabase no devolvió el identificador del hogar.');
 
-      await loadHousehold(userId);
+      await loadHousehold(userId, householdId as string);
 
       Alert.alert('¡Listo!', 'Ya puedes ver el panel de tu hogar.');
     });
