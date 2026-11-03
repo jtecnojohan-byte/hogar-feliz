@@ -31,7 +31,11 @@ type Task = {
   title: string;
   completed: boolean;
   created_at: string;
+  assigned_to?: string | null;
 };
+
+type HouseholdMember = { user_id: string; display_name: string };
+type TaskSuggestion = { task: Task; member: HouseholdMember; score: number; reason: string };
 
 type ShoppingItem = {
   id: string;
@@ -62,7 +66,8 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [tab, setTab] = useState<'tasks' | 'shopping'>('tasks');
-  const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile'>('home');
+  const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile' | 'hogarbot'>('home');
+  const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -168,6 +173,7 @@ export default function App() {
         setHousehold(null);
         setTasks([]);
         setItems([]);
+        setMembers([]);
         return;
       }
       householdId = membership.household_id;
@@ -185,14 +191,33 @@ export default function App() {
     }
 
     setHousehold(home as Household);
-    await loadLists(home.id);
+    await Promise.all([loadLists(home.id), loadMembers(home.id)]);
   }, []);
+
+  const loadMembers = async (householdId: string) => {
+    const { data: membershipRows, error: memberError } = await supabase
+      .from('household_members')
+      .select('user_id')
+      .eq('household_id', householdId);
+    if (memberError) throw memberError;
+    const ids = (membershipRows || []).map((row: { user_id: string }) => row.user_id);
+    if (!ids.length) { setMembers([]); return; }
+    const { data: profileRows, error: profileError } = await supabase
+      .from('profiles')
+      .select('user_id, display_name')
+      .in('user_id', ids);
+    if (profileError) throw profileError;
+    setMembers((profileRows || []).map((profile: { user_id: string; display_name: string }) => ({
+      user_id: profile.user_id,
+      display_name: profile.display_name || 'Integrante',
+    })));
+  };
 
   const loadLists = async (householdId: string) => {
     const [taskResult, shoppingResult] = await Promise.all([
       supabase
         .from('tasks')
-        .select('id, title, completed, created_at')
+        .select('id, title, completed, created_at, assigned_to')
         .eq('household_id', householdId)
         .order('created_at', { ascending: false }),
       supabase
@@ -246,6 +271,7 @@ export default function App() {
           setHousehold(null);
           setTasks([]);
           setItems([]);
+          setMembers([]);
         } else {
           setTimeout(() => {
             if (active) {
@@ -486,6 +512,27 @@ export default function App() {
   }
 
   const completedTasks = tasks.filter((task) => task.completed).length;
+  const pendingTasks = tasks.filter((task) => !task.completed);
+  const assignedCounts = members.reduce<Record<string, number>>((counts, member) => {
+    counts[member.user_id] = pendingTasks.filter((task) => task.assigned_to === member.user_id).length;
+    return counts;
+  }, {});
+  const suggestions: TaskSuggestion[] = pendingTasks.filter((task) => !task.assigned_to).map((task) => {
+    const ranked = members.map((member) => {
+      const load = assignedCounts[member.user_id] || 0;
+      const balanceScore = members.length ? 100 / (1 + load) : 0;
+      const rotationScore = 100 / (1 + load);
+      const availabilityScore = 50; // Neutral until member availability/preferences are configured.
+      return { member, score: 0.5 * balanceScore + 0.3 * rotationScore + 0.2 * availabilityScore, load };
+    }).sort((a, b) => b.score - a.score);
+    const best = ranked[0];
+    return best ? {
+      task,
+      member: best.member,
+      score: Math.round(best.score),
+      reason: best.load === 0 ? 'Tiene menos tareas pendientes asignadas.' : 'Su carga pendiente es menor que la de otros integrantes.',
+    } : null;
+  }).filter((value): value is TaskSuggestion => value !== null);
   const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
 
   const BottomNav = () => (
@@ -626,6 +673,11 @@ export default function App() {
                       <Text style={s.taskArrow}>›</Text>
                     </TouchableOpacity>
                   ))}
+                  <TouchableOpacity style={s.botEntryCard} onPress={() => setScreen('hogarbot')}>
+                    <View style={s.botEntryIcon}><Text style={s.botEntryGlyph}>✦</Text></View>
+                    <View style={s.taskCopy}><Text style={s.botEntryTitle}>Organiza con HogarBot</Text><Text style={s.taskMeta}>Recibe sugerencias para repartir las tareas.</Text></View>
+                    <Text style={s.taskArrow}>›</Text>
+                  </TouchableOpacity>
                   <View style={s.inviteStrip}>
                     <View style={s.inviteCopy}><Text style={s.inviteTitle}>¿Falta alguien en el equipo?</Text><Text style={s.inviteSubtitle}>Comparte el código familiar.</Text></View>
                     <TouchableOpacity style={s.inviteButton} onPress={() => setScreen('profile')}><Text style={s.inviteButtonText}>Ver código</Text></TouchableOpacity>
@@ -637,8 +689,46 @@ export default function App() {
                 <>
                   <View style={s.welcomeBlock}><Text style={s.dateEyebrow}>ORGANIZACIÓN DEL HOGAR</Text><Text style={s.pageTitle}>Tareas ✓</Text><Text style={s.pageSubtitle}>Cada pequeña ayuda cuenta.</Text></View>
                   <View style={s.addCard}><Text style={s.sectionTitle}>Nueva tarea</Text><TextInput style={s.input} placeholder="Ej. Lavar los platos" placeholderTextColor="#89948D" value={taskTitle} onChangeText={setTaskTitle} /><TouchableOpacity style={s.primaryButton} onPress={addTask} disabled={busy}><Text style={s.primaryButtonText}>＋ Añadir tarea</Text></TouchableOpacity></View>
+                  <TouchableOpacity style={s.botEntryCard} onPress={() => setScreen('hogarbot')}>
+                    <View style={s.botEntryIcon}><Text style={s.botEntryGlyph}>✦</Text></View>
+                    <View style={s.taskCopy}><Text style={s.botEntryTitle}>Pedir ayuda a HogarBot</Text><Text style={s.taskMeta}>Revisar y distribuir tareas pendientes.</Text></View>
+                    <Text style={s.taskArrow}>›</Text>
+                  </TouchableOpacity>
                   <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>Todas las tareas</Text><Text style={s.sectionHint}>{completedTasks} completadas · {tasks.length - completedTasks} pendientes</Text></View></View>
                   {tasks.length === 0 ? <View style={s.emptyCard}><Text style={s.emptyIcon}>✓</Text><Text style={s.emptyTitle}>Todavía no hay tareas</Text><Text style={s.emptyText}>Añade una arriba para empezar.</Text></View> : tasks.map((task) => <TouchableOpacity key={task.id} style={s.taskCard} onPress={() => toggleTask(task)}><View style={[s.taskCheck, task.completed && s.taskCheckDone]}><Text style={s.taskCheckText}>{task.completed ? '✓' : ''}</Text></View><View style={s.taskCopy}><Text style={[s.taskName, task.completed && s.taskNameDone]}>{task.title}</Text><Text style={s.taskMeta}>{task.completed ? 'Completada' : 'Toca para marcar como hecha'}</Text></View><Text style={s.taskArrow}>›</Text></TouchableOpacity>)}
+                </>
+              )}
+
+              {screen === 'hogarbot' && (
+                <>
+                  <View style={s.welcomeBlock}>
+                    <Text style={s.dateEyebrow}>ASISTENTE PREMIUM</Text>
+                    <Text style={s.pageTitle}>HogarBot 🤖</Text>
+                    <Text style={s.pageSubtitle}>Propuestas equilibradas para organizar el hogar.</Text>
+                  </View>
+                  <View style={s.botHeroCard}>
+                    <Text style={s.botHeroTitle}>Tu equipo, mejor organizado</Text>
+                    <Text style={s.botHeroText}>La primera versión usa equilibrio (50 %), rotación (30 %) y disponibilidad/preferencias (20 %).</Text>
+                  </View>
+                  <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>Propuestas de asignación</Text><Text style={s.sectionHint}>{suggestions.length} tareas pendientes sin asignar · {members.length} integrantes</Text></View></View>
+                  {members.length === 0 ? (
+                    <View style={s.emptyCard}><Text style={s.emptyTitle}>No encontramos integrantes</Text><Text style={s.emptyText}>Revisa que los miembros del hogar tengan su perfil creado.</Text></View>
+                  ) : suggestions.length === 0 ? (
+                    <View style={s.emptyCard}><Text style={s.emptyIcon}>✓</Text><Text style={s.emptyTitle}>No hay propuestas por ahora</Text><Text style={s.emptyText}>Agrega tareas sin asignar para que HogarBot pueda sugerir una distribución.</Text></View>
+                  ) : suggestions.map((suggestion) => (
+                    <View key={suggestion.task.id} style={s.botSuggestionCard}>
+                      <Text style={s.botTaskTitle}>{suggestion.task.title}</Text>
+                      <Text style={s.botSuggestionText}>Sugerencia: {suggestion.member.display_name}</Text>
+                      <Text style={s.sectionHint}>{suggestion.reason} Puntuación orientativa: {suggestion.score}/100.</Text>
+                      <TouchableOpacity style={s.primaryButton} disabled={busy} onPress={() => run(async () => {
+                        if (!household) return;
+                        const { error } = await supabase.from('tasks').update({ assigned_to: suggestion.member.user_id }).eq('id', suggestion.task.id).eq('household_id', household.id);
+                        if (error) throw error;
+                        await loadLists(household.id);
+                      })}><Text style={s.primaryButtonText}>Aceptar asignación</Text></TouchableOpacity>
+                    </View>
+                  ))}
+                  <View style={s.botNoteCard}><Text style={s.botNoteTitle}>Así funciona esta versión</Text><Text style={s.botNoteText}>La disponibilidad todavía se considera neutral porque aún no hay preferencias configuradas. HogarBot solo propone asignaciones para tareas pendientes sin responsable y nunca cambia otras asignaciones automáticamente.</Text></View>
                 </>
               )}
 
@@ -774,6 +864,19 @@ const s = StyleSheet.create({
   inviteSubtitle: { color: '#819087', fontSize: 10, marginTop: 4 },
   inviteButton: { backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingVertical: 10, borderRadius: 12 },
   inviteButtonText: { color: '#247A58', fontSize: 10, fontWeight: '900' },
+  botEntryCard: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: '#DCE9DE' },
+  botEntryIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#E6F1E7', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  botEntryGlyph: { color: '#247A58', fontSize: 22, fontWeight: '900' },
+  botEntryTitle: { color: '#18372B', fontSize: 13, fontWeight: '900' },
+  botHeroCard: { backgroundColor: '#E8F2E8', borderRadius: 22, padding: 19, marginBottom: 22 },
+  botHeroTitle: { color: '#18372B', fontSize: 17, fontWeight: '900', marginBottom: 7 },
+  botHeroText: { color: '#607568', fontSize: 12, lineHeight: 19 },
+  botSuggestionCard: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 17, borderWidth: 1, borderColor: '#E9EEE7', marginBottom: 11 },
+  botTaskTitle: { color: '#18372B', fontSize: 15, fontWeight: '900', marginBottom: 8 },
+  botSuggestionText: { color: '#247A58', fontSize: 14, fontWeight: '800', marginBottom: 5 },
+  botNoteCard: { backgroundColor: '#F0F3EF', borderRadius: 17, padding: 16, marginTop: 10 },
+  botNoteTitle: { color: '#52675A', fontSize: 12, fontWeight: '900', marginBottom: 6 },
+  botNoteText: { color: '#7B8B80', fontSize: 11, lineHeight: 17 },
   addCard: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 18, borderWidth: 1, borderColor: '#E9EEE7', marginBottom: 24 },
   profileCard: { backgroundColor: '#FFFFFF', borderRadius: 23, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#E9EEE7', marginBottom: 14 },
   profileAvatar: { width: 66, height: 66, borderRadius: 23, backgroundColor: '#DDECE0', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
