@@ -1,5 +1,5 @@
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -520,38 +520,54 @@ export default function App() {
     );
   }
 
-  const completedTasks = tasks.filter((task) => task.completed).length;
-  const pendingTasks = tasks.filter((task) => !task.completed);
-  const assignedCounts = members.reduce<Record<string, number>>((counts, member) => {
-    counts[member.user_id] = pendingTasks.filter((task) => task.assigned_to === member.user_id).length;
-    return counts;
-  }, {});
-  // La carga virtual evita recomendar todas las tareas nuevas a la misma persona.
-  // Sin historial de asignaciones ni preferencias, rotación y disponibilidad quedan neutrales.
-  const virtualLoads = { ...assignedCounts };
-  const unassignedTasks = pendingTasks.filter((task) => !task.assigned_to);
-  const suggestions: TaskSuggestion[] = unassignedTasks.map((task) => {
-    const ranked = members.map((member) => {
-      const load = virtualLoads[member.user_id] || 0;
-      const balanceScore = 100 / (1 + load);
-      const rotationScore = 50;
-      const availabilityScore = 50;
-      const score = 0.5 * balanceScore + 0.3 * rotationScore + 0.2 * availabilityScore;
-      return { member, score, load };
-    }).sort((a, b) => b.score - a.score || a.load - b.load);
-    const best = ranked[0];
-    if (!best) return null;
-    virtualLoads[best.member.user_id] = (virtualLoads[best.member.user_id] || 0) + 1;
+  const { completedTasks, pendingTasks, assignedCounts, unassignedTasks, progress } = useMemo(() => {
+    let completed = 0;
+    const counts: Record<string, number> = {};
+    members.forEach((member) => { counts[member.user_id] = 0; });
+    tasks.forEach((task) => {
+      if (task.completed) {
+        completed += 1;
+      } else if (task.assigned_to && counts[task.assigned_to] !== undefined) {
+        counts[task.assigned_to] += 1;
+      }
+    });
+    const pending = tasks.filter((task) => !task.completed);
     return {
-      task,
-      member: best.member,
-      score: Math.round(best.score),
-      reason: best.load === 0
-        ? 'No tiene tareas pendientes asignadas; esta propuesta ayuda a repartir la carga.'
-        : 'La propuesta considera su carga actual y distribuye las nuevas tareas entre el equipo.',
+      completedTasks: completed,
+      pendingTasks: pending,
+      assignedCounts: counts,
+      unassignedTasks: pending.filter((task) => !task.assigned_to),
+      progress: tasks.length ? Math.round((completed / tasks.length) * 100) : 0,
     };
-  }).filter((value): value is TaskSuggestion => value !== null);
-  const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+  }, [tasks, members]);
+
+  // Recalcula las propuestas solo cuando cambian las tareas o los integrantes.
+  // La carga virtual evita recomendar todas las tareas nuevas a la misma persona.
+  // Sin historial ni preferencias, rotación y disponibilidad permanecen neutrales.
+  const suggestions: TaskSuggestion[] = useMemo(() => {
+    const virtualLoads = { ...assignedCounts };
+    return unassignedTasks.map((task) => {
+      const ranked = members.map((member) => {
+        const load = virtualLoads[member.user_id] || 0;
+        const balanceScore = 100 / (1 + load);
+        const rotationScore = 50;
+        const availabilityScore = 50;
+        const score = 0.5 * balanceScore + 0.3 * rotationScore + 0.2 * availabilityScore;
+        return { member, score, load };
+      }).sort((a, b) => b.score - a.score || a.load - b.load);
+      const best = ranked[0];
+      if (!best) return null;
+      virtualLoads[best.member.user_id] = (virtualLoads[best.member.user_id] || 0) + 1;
+      return {
+        task,
+        member: best.member,
+        score: Math.round(best.score),
+        reason: best.load === 0
+          ? 'No tiene tareas pendientes asignadas; esta propuesta ayuda a repartir la carga.'
+          : 'La propuesta considera su carga actual y distribuye las nuevas tareas entre el equipo.',
+      };
+    }).filter((value): value is TaskSuggestion => value !== null);
+  }, [assignedCounts, members, unassignedTasks]);
 
   const BottomNav = () => (
     <View style={s.bottomNav}>
