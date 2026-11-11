@@ -32,9 +32,15 @@ type Task = {
   completed: boolean;
   created_at: string;
   assigned_to?: string | null;
+  due_date?: string;
 };
 
-type HouseholdMember = { user_id: string; display_name: string };
+type HouseholdMember = { user_id: string; display_name: string; role?: string };
+type BotPreference = { available_days: number[]; preferred_keywords: string[]; avoided_keywords: string[]; max_tasks_per_week: number };
+type BotSettings = { enabled: boolean; balance_weight: number; rotation_weight: number; availability_weight: number; max_tasks_per_day: number; fairness_window_days: number };
+type BotHistoryEntry = { new_assignee: string | null; changed_at: string };
+const DEFAULT_BOT_SETTINGS: BotSettings = { enabled: true, balance_weight: 0.5, rotation_weight: 0.3, availability_weight: 0.2, max_tasks_per_day: 3, fairness_window_days: 14 };
+const DEFAULT_BOT_PREFERENCE: BotPreference = { available_days: [0,1,2,3,4,5,6], preferred_keywords: [], avoided_keywords: [], max_tasks_per_week: 7 };
 type TaskSuggestion = { task: Task; member: HouseholdMember; score: number; reason: string };
 
 type ShoppingItem = {
@@ -68,6 +74,16 @@ export default function App() {
   const [tab, setTab] = useState<'tasks' | 'shopping'>('tasks');
   const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile' | 'hogarbot'>('home');
   const [members, setMembers] = useState<HouseholdMember[]>([]);
+  const [memberPreferences, setMemberPreferences] = useState<Record<string, BotPreference>>({});
+  const [botSettings, setBotSettings] = useState<BotSettings>(DEFAULT_BOT_SETTINGS);
+  const [botHistory, setBotHistory] = useState<BotHistoryEntry[]>([]);
+  const [isHouseholdAdmin, setIsHouseholdAdmin] = useState(false);
+  const [availableDaysInput, setAvailableDaysInput] = useState('0,1,2,3,4,5,6');
+  const [preferredKeywordsInput, setPreferredKeywordsInput] = useState('');
+  const [avoidedKeywordsInput, setAvoidedKeywordsInput] = useState('');
+  const [maxTasksPerWeekInput, setMaxTasksPerWeekInput] = useState('7');
+  const [maxTasksPerDayInput, setMaxTasksPerDayInput] = useState('3');
+  const [fairnessWindowInput, setFairnessWindowInput] = useState('14');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -154,6 +170,90 @@ export default function App() {
     Alert.alert(t('Contraseña actualizada', 'Password updated'), t('Tu contraseña se cambió correctamente.', 'Your password was changed successfully.'));
   });
 
+  const loadHogarBotData = async (householdId: string, id: string, ownerId: string) => {
+    const { data: ownMembership, error: ownMembershipError } = await supabase
+      .from('household_members').select('role')
+      .eq('household_id', householdId).eq('user_id', id).maybeSingle();
+    if (ownMembershipError) throw ownMembershipError;
+    const admin = ownerId === id || ownMembership?.role === 'Administrador';
+    setIsHouseholdAdmin(admin);
+
+    const [preferencesResult, settingsResult, historyResult] = await Promise.all([
+      supabase.from('hogarbot_member_preferences')
+        .select('user_id, available_days, preferred_keywords, avoided_keywords, max_tasks_per_week')
+        .eq('household_id', householdId),
+      supabase.from('hogarbot_settings').select('*').eq('household_id', householdId).maybeSingle(),
+      supabase.from('hogarbot_assignment_history').select('new_assignee, changed_at')
+        .eq('household_id', householdId)
+        .gte('changed_at', new Date(Date.now() - 90 * 86400000).toISOString())
+        .order('changed_at', { ascending: false }).limit(500),
+    ]);
+    if (preferencesResult.error) throw preferencesResult.error;
+    if (settingsResult.error) throw settingsResult.error;
+    if (historyResult.error) throw historyResult.error;
+
+    const preferences: Record<string, BotPreference> = {};
+    (preferencesResult.data || []).forEach((row: any) => {
+      preferences[row.user_id] = {
+        available_days: row.available_days || DEFAULT_BOT_PREFERENCE.available_days,
+        preferred_keywords: row.preferred_keywords || [],
+        avoided_keywords: row.avoided_keywords || [],
+        max_tasks_per_week: row.max_tasks_per_week || 7,
+      };
+    });
+    setMemberPreferences(preferences);
+    const mine = preferences[id] || DEFAULT_BOT_PREFERENCE;
+    setAvailableDaysInput(mine.available_days.join(','));
+    setPreferredKeywordsInput(mine.preferred_keywords.join(', '));
+    setAvoidedKeywordsInput(mine.avoided_keywords.join(', '));
+    setMaxTasksPerWeekInput(String(mine.max_tasks_per_week));
+
+    let settings = settingsResult.data as BotSettings | null;
+    if (!settings && admin) {
+      const { data, error } = await supabase.from('hogarbot_settings')
+        .upsert({ household_id: householdId, ...DEFAULT_BOT_SETTINGS, updated_by: id }, { onConflict: 'household_id' })
+        .select('*').single();
+      if (error) throw error;
+      settings = data as BotSettings;
+    }
+    setBotSettings(settings || DEFAULT_BOT_SETTINGS);
+    setMaxTasksPerDayInput(String(settings?.max_tasks_per_day ?? 3));
+    setFairnessWindowInput(String(settings?.fairness_window_days ?? 14));
+    setBotHistory((historyResult.data || []) as BotHistoryEntry[]);
+  };
+
+  const saveBotPreferences = () => run(async () => {
+    if (!household || !userId) return;
+    const days = [...new Set(availableDaysInput.split(',').map((v) => Number(v.trim())).filter((v) => Number.isInteger(v) && v >= 0 && v <= 6))];
+    if (!days.length) throw new Error('Selecciona al menos un día disponible (0=domingo, 6=sábado).');
+    const preferred = preferredKeywordsInput.split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
+    const avoided = avoidedKeywordsInput.split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
+    const weeklyLimit = Number(maxTasksPerWeekInput);
+    if (!Number.isInteger(weeklyLimit) || weeklyLimit < 1 || weeklyLimit > 35) throw new Error('El máximo semanal debe estar entre 1 y 35.');
+    const next: BotPreference = { available_days: days, preferred_keywords: preferred, avoided_keywords: avoided, max_tasks_per_week: weeklyLimit };
+    const { error } = await supabase.from('hogarbot_member_preferences').upsert({
+      household_id: household.id, user_id: userId, ...next, updated_at: new Date().toISOString(),
+    }, { onConflict: 'household_id,user_id' });
+    if (error) throw error;
+    setMemberPreferences((current) => ({ ...current, [userId]: next }));
+    Alert.alert('Preferencias guardadas', 'HogarBot tendrá en cuenta tu disponibilidad y tus preferencias.');
+  });
+
+  const saveBotSettings = () => run(async () => {
+    if (!household || !userId || !isHouseholdAdmin) return;
+    const maxPerDay = Number(maxTasksPerDayInput);
+    const windowDays = Number(fairnessWindowInput);
+    if (!Number.isInteger(maxPerDay) || maxPerDay < 1 || maxPerDay > 10) throw new Error('El máximo diario debe estar entre 1 y 10.');
+    if (!Number.isInteger(windowDays) || windowDays < 1 || windowDays > 90) throw new Error('La ventana de rotación debe estar entre 1 y 90 días.');
+    const next: BotSettings = { ...botSettings, max_tasks_per_day: maxPerDay, fairness_window_days: windowDays };
+    const { error } = await supabase.from('hogarbot_settings').upsert({
+      household_id: household.id, ...next, updated_by: userId, updated_at: new Date().toISOString(),
+    }, { onConflict: 'household_id' });
+    if (error) throw error;
+    setBotSettings(next);
+    Alert.alert('Ajustes actualizados', 'La configuración general de HogarBot quedó guardada.');
+  });
+
   const loadHousehold = useCallback(async (id: string, preferredHouseholdId?: string) => {
     let householdId = preferredHouseholdId;
 
@@ -192,15 +292,18 @@ export default function App() {
 
     setHousehold(home as Household);
     await Promise.all([loadLists(home.id), loadMembers(home.id)]);
+    await loadHogarBotData(home.id, id, home.owner_id);
   }, []);
 
   const loadMembers = async (householdId: string) => {
     const { data: membershipRows, error: memberError } = await supabase
       .from('household_members')
-      .select('user_id')
+      .select('user_id, role')
       .eq('household_id', householdId);
     if (memberError) throw memberError;
     const ids = (membershipRows || []).map((row: { user_id: string }) => row.user_id);
+    const rolesById = new Map<string, string>();
+    (membershipRows || []).forEach((row: { user_id: string; role: string }) => rolesById.set(row.user_id, row.role));
     if (!ids.length) { setMembers([]); return; }
     // Los perfiles pueden estar protegidos por RLS. La lista de membresías
     // sigue siendo suficiente para proponer tareas sin exponer datos privados.
@@ -219,6 +322,7 @@ export default function App() {
     setMembers(ids.map((memberId) => ({
       user_id: memberId,
       display_name: namesById.get(memberId) || 'Integrante',
+      role: rolesById.get(memberId) || 'Miembro',
     })));
   };
 
@@ -226,7 +330,7 @@ export default function App() {
     const [taskResult, shoppingResult] = await Promise.all([
       supabase
         .from('tasks')
-        .select('id, title, completed, created_at, assigned_to')
+        .select('id, title, completed, created_at, assigned_to, due_date')
         .eq('household_id', householdId)
         .order('created_at', { ascending: false }),
       supabase
@@ -541,33 +645,67 @@ export default function App() {
     };
   }, [tasks, members]);
 
-  // Recalcula las propuestas solo cuando cambian las tareas o los integrantes.
-  // La carga virtual evita recomendar todas las tareas nuevas a la misma persona.
-  // Sin historial ni preferencias, rotación y disponibilidad permanecen neutrales.
+  // HogarBot combina carga actual, historial reciente y preferencias familiares.
   const suggestions: TaskSuggestion[] = useMemo(() => {
+    if (!botSettings.enabled) return [];
     const virtualLoads = { ...assignedCounts };
+    const historyCounts: Record<string, number> = {};
+    const weeklyCounts: Record<string, number> = {};
+    const virtualDailyLoads: Record<string, number> = {};
+    const now = Date.now();
+    const cutoff = now - botSettings.fairness_window_days * 86400000;
+    botHistory.forEach((entry) => {
+      const changedAt = new Date(entry.changed_at).getTime();
+      if (entry.new_assignee && changedAt >= cutoff) {
+        historyCounts[entry.new_assignee] = (historyCounts[entry.new_assignee] || 0) + 1;
+      }
+      if (entry.new_assignee && changedAt >= now - 7 * 86400000) {
+        weeklyCounts[entry.new_assignee] = (weeklyCounts[entry.new_assignee] || 0) + 1;
+      }
+    });
     return unassignedTasks.map((task) => {
+      const taskDate = task.due_date || new Date().toISOString().slice(0, 10);
+      const taskDay = new Date(taskDate + 'T12:00:00').getDay();
+      const title = task.title.toLowerCase();
       const ranked = members.map((member) => {
         const load = virtualLoads[member.user_id] || 0;
+        const preference = memberPreferences[member.user_id] || DEFAULT_BOT_PREFERENCE;
+        const weeklyAssignments = weeklyCounts[member.user_id] || 0;
+        const rotationAssignments = historyCounts[member.user_id] || 0;
         const balanceScore = 100 / (1 + load);
-        const rotationScore = 50;
-        const availabilityScore = 50;
-        const score = 0.5 * balanceScore + 0.3 * rotationScore + 0.2 * availabilityScore;
-        return { member, score, load };
+        const rotationScore = 100 / (1 + rotationAssignments);
+        const unavailable = !preference.available_days.includes(taskDay);
+        const avoided = preference.avoided_keywords.some((word) => word && title.includes(word));
+        const preferred = preference.preferred_keywords.some((word) => word && title.includes(word));
+        const availabilityScore = unavailable || avoided ? 0 : preferred ? 100 : 75;
+        const weeklyLimitPenalty = weeklyAssignments >= preference.max_tasks_per_week ? 0.25 : 1;
+        const dayKey = member.user_id + ':' + taskDate;
+        const sameDayLoad = tasks.filter((item) => !item.completed && item.assigned_to === member.user_id && item.due_date === taskDate).length + (virtualDailyLoads[dayKey] || 0);
+        const dailyLimitPenalty = sameDayLoad >= botSettings.max_tasks_per_day ? 0.25 : 1;
+        const score = (
+          Number(botSettings.balance_weight) * balanceScore +
+          Number(botSettings.rotation_weight) * rotationScore +
+          Number(botSettings.availability_weight) * availabilityScore
+        ) * weeklyLimitPenalty * dailyLimitPenalty;
+        return { member, score, load, unavailable, avoided, preferred, weeklyAssignments };
       }).sort((a, b) => b.score - a.score || a.load - b.load);
       const best = ranked[0];
       if (!best) return null;
       virtualLoads[best.member.user_id] = (virtualLoads[best.member.user_id] || 0) + 1;
+      const selectedDayKey = best.member.user_id + ':' + taskDate;
+      virtualDailyLoads[selectedDayKey] = (virtualDailyLoads[selectedDayKey] || 0) + 1;
       return {
         task,
         member: best.member,
         score: Math.round(best.score),
-        reason: best.load === 0
-          ? 'No tiene tareas pendientes asignadas; esta propuesta ayuda a repartir la carga.'
-          : 'La propuesta considera su carga actual y distribuye las nuevas tareas entre el equipo.',
+        reason: best.unavailable || best.avoided
+          ? 'La disponibilidad o las tareas que prefiere evitar reducen esta puntuación.'
+          : best.preferred
+            ? 'Coincide con una de sus preferencias y considera su carga e historial.'
+            : 'Considera su carga actual y ' + best.weeklyAssignments + ' asignaciones recientes.',
       };
     }).filter((value): value is TaskSuggestion => value !== null);
-  }, [assignedCounts, members, unassignedTasks]);
+  }, [assignedCounts, members, unassignedTasks, memberPreferences, botSettings, botHistory, tasks]);
 
   const BottomNav = () => (
     <View style={s.bottomNav}>
@@ -736,14 +874,35 @@ export default function App() {
               {screen === 'hogarbot' && (
                 <>
                   <View style={s.welcomeBlock}>
-                    <Text style={s.dateEyebrow}>ASISTENTE DE TAREAS · VERSIÓN INICIAL</Text>
+                    <Text style={s.dateEyebrow}>ASISTENTE DE TAREAS · HOGARBOT 2.0</Text>
                     <Text style={s.pageTitle}>HogarBot 🤖</Text>
                     <Text style={s.pageSubtitle}>Propuestas orientativas para repartir tareas de forma más equilibrada.</Text>
                   </View>
                   <View style={s.botHeroCard}>
                     <Text style={s.botHeroTitle}>Tu equipo, mejor organizado</Text>
-                    <Text style={s.botHeroText}>Ponderación inicial: equilibrio de carga (50 %), rotación (30 %) y disponibilidad/preferencias (20 %). En esta versión, rotación y disponibilidad son neutrales porque aún no hay historial ni preferencias guardadas; las propuestas se distribuyen usando la carga actual.</Text>
+                    <Text style={s.botHeroText}>HogarBot combina equilibrio (50 %), rotación histórica (30 %) y disponibilidad/preferencias (20 %). Las propuestas son orientativas y solo se aplican cuando alguien acepta.</Text>
                   </View>
+                  <View style={s.settingsCard}>
+                    <Text style={s.settingsTitle}>Mis preferencias</Text>
+                    <Text style={s.sectionHint}>Días disponibles: 0=domingo, 1=lunes ... 6=sábado.</Text>
+                    <TextInput style={s.input} value={availableDaysInput} onChangeText={setAvailableDaysInput} placeholder="0,1,2,3,4,5,6" placeholderTextColor="#89948D" />
+                    <Text style={s.settingsLabel}>Tareas que prefiero (palabras separadas por coma)</Text>
+                    <TextInput style={s.input} value={preferredKeywordsInput} onChangeText={setPreferredKeywordsInput} placeholder="cocina, ordenar, plantas" placeholderTextColor="#89948D" />
+                    <Text style={s.settingsLabel}>Tareas que prefiero evitar</Text>
+                    <TextInput style={s.input} value={avoidedKeywordsInput} onChangeText={setAvoidedKeywordsInput} placeholder="baño, ventanas..." placeholderTextColor="#89948D" />
+                    <Text style={s.settingsLabel}>Máximo de tareas por semana</Text>
+                    <TextInput style={s.input} value={maxTasksPerWeekInput} onChangeText={setMaxTasksPerWeekInput} keyboardType="number-pad" placeholder="7" placeholderTextColor="#89948D" />
+                    <TouchableOpacity style={s.primaryButton} onPress={saveBotPreferences} disabled={busy}><Text style={s.primaryButtonText}>Guardar mis preferencias</Text></TouchableOpacity>
+                  </View>
+                  {isHouseholdAdmin && <View style={s.settingsCard}>
+                    <Text style={s.settingsTitle}>Configuración del administrador</Text>
+                    <Text style={s.sectionHint}>Pesos del algoritmo: equilibrio 50 % · rotación 30 % · disponibilidad 20 %.</Text>
+                    <Text style={s.settingsLabel}>Máximo de tareas por día</Text>
+                    <TextInput style={s.input} value={maxTasksPerDayInput} onChangeText={setMaxTasksPerDayInput} keyboardType="number-pad" placeholder="3" placeholderTextColor="#89948D" />
+                    <Text style={s.settingsLabel}>Días que se revisan para la rotación</Text>
+                    <TextInput style={s.input} value={fairnessWindowInput} onChangeText={setFairnessWindowInput} keyboardType="number-pad" placeholder="14" placeholderTextColor="#89948D" />
+                    <TouchableOpacity style={s.primaryButton} onPress={saveBotSettings} disabled={busy}><Text style={s.primaryButtonText}>Guardar configuración general</Text></TouchableOpacity>
+                  </View>}
                   <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>Propuestas de asignación</Text><Text style={s.sectionHint}>{suggestions.length} tareas pendientes sin asignar · {members.length} integrantes</Text></View></View>
                   {members.length === 0 ? (
                     <View style={s.emptyCard}><Text style={s.emptyTitle}>No encontramos integrantes</Text><Text style={s.emptyText}>Revisa que los miembros del hogar tengan su perfil creado.</Text></View>
@@ -762,7 +921,7 @@ export default function App() {
                       })}><Text style={s.primaryButtonText}>Aceptar asignación</Text></TouchableOpacity>
                     </View>
                   ))}
-                  <View style={s.botNoteCard}><Text style={s.botNoteTitle}>Así funciona esta versión</Text><Text style={s.botNoteText}>Esta versión usa la carga pendiente actual y reparte las propuestas de forma progresiva. La rotación histórica y la disponibilidad siguen neutrales hasta que existan datos. HogarBot solo propone tareas pendientes sin responsable; nada se asigna sin que alguien pulse “Aceptar asignación”.</Text></View>
+                  <View style={s.botNoteCard}><Text style={s.botNoteTitle}>Así funciona HogarBot 2.0</Text><Text style={s.botNoteText}>Las preferencias se guardan por integrante; el administrador controla los límites generales. El historial empieza a contar desde esta actualización. HogarBot propone tareas pendientes sin responsable y nunca asigna nada sin confirmación.</Text></View>
                 </>
               )}
 
