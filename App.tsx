@@ -611,18 +611,6 @@ export default function App() {
     );
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={s.safe}>
-        <ExpoStatusBar style="dark" />
-        <View style={s.loadingWrap}>
-          <View style={s.brandMark}><Text style={s.brandMarkText}>⌂</Text></View>
-          <ActivityIndicator size="large" color="#247A58" />
-          <Text style={s.helper}>Preparando tu hogar...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   const { completedTasks, pendingTasks, assignedCounts, unassignedTasks, progress } = useMemo(() => {
     let completed = 0;
@@ -706,6 +694,20 @@ export default function App() {
       };
     }).filter((value): value is TaskSuggestion => value !== null);
   }, [assignedCounts, members, unassignedTasks, memberPreferences, botSettings, botHistory, tasks]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <ExpoStatusBar style="dark" />
+        <View style={s.loadingWrap}>
+          <View style={s.brandMark}><Text style={s.brandMarkText}>⌂</Text></View>
+          <ActivityIndicator size="large" color="#247A58" />
+          <Text style={s.helper}>Preparando tu hogar...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
 
   const BottomNav = () => (
     <View style={s.bottomNav}>
