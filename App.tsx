@@ -612,26 +612,22 @@ export default function App() {
   };
 
 
-  const { completedTasks, pendingTasks, assignedCounts, unassignedTasks, progress } = useMemo(() => {
-    let completed = 0;
+  // Los contadores del panel se derivan directamente del estado actual para
+  // que Inicio, Tareas y Compras siempre muestren los mismos datos.
+  const completedTasks = tasks.filter((task) => task.completed === true).length;
+  const pendingTasks = tasks.filter((task) => task.completed !== true);
+  const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+  const assignedCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     members.forEach((member) => { counts[member.user_id] = 0; });
     tasks.forEach((task) => {
-      if (task.completed) {
-        completed += 1;
-      } else if (task.assigned_to && counts[task.assigned_to] !== undefined) {
+      if (!task.completed && task.assigned_to && counts[task.assigned_to] !== undefined) {
         counts[task.assigned_to] += 1;
       }
     });
-    const pending = tasks.filter((task) => !task.completed);
-    return {
-      completedTasks: completed,
-      pendingTasks: pending,
-      assignedCounts: counts,
-      unassignedTasks: pending.filter((task) => !task.assigned_to),
-      progress: tasks.length ? Math.round((completed / tasks.length) * 100) : 0,
-    };
+    return counts;
   }, [tasks, members]);
+  const unassignedTasks = pendingTasks.filter((task) => !task.assigned_to);
 
   // HogarBot combina carga actual, historial reciente y preferencias familiares.
   const suggestions: TaskSuggestion[] = useMemo(() => {
