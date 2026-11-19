@@ -816,7 +816,7 @@ export default function App() {
                       <Text style={s.progressTitle}>Progreso de tareas</Text>
                       <Text style={s.progressPercent}>{progress}%</Text>
                     </View>
-                    <View style={s.progressTrack}><View style={[s.progressFill, { width: progress + '%' }]} /></View>
+                    <View style={s.progressTrack}><View style={[s.progressFill, { width: (progress + '%') as `${number}%` }]} /></View>
                     <Text style={s.progressCaption}>{completedTasks} de {tasks.length} tareas completadas</Text>
                   </View>
                   <View style={s.statsRow}>
@@ -985,6 +985,7 @@ export default function App() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F2F6F2' },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18 },
+  helper: { color: '#819087', fontSize: 13, fontWeight: '600' },
   brandMark: { width: 64, height: 64, borderRadius: 22, backgroundColor: '#176B50', alignItems: 'center', justifyContent: 'center', shadowColor: '#174B38', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
   brandMarkText: { color: '#fff', fontSize: 42, fontWeight: '800', marginTop: -6 },
   authPage: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: 48, paddingBottom: 36, width: '100%', maxWidth: 560, alignSelf: 'center' },
