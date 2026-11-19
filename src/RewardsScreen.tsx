@@ -107,6 +107,31 @@ export function RewardsScreen({ householdId, language, onBack }: Props) {
         <View style={s.statCard}><Text style={s.statNumber}>{approvedRequests}</Text><Text style={s.statLabel}>{t('Recompensas aprobadas', 'Approved rewards')}</Text></View>
       </View>
 
+      <View style={s.rulesCard}>
+        <Text style={s.rulesEyebrow}>{t('ASÍ FUNCIONARÁ', 'HOW IT WILL WORK')}</Text>
+        <Text style={s.rulesTitle}>{t('Una recompensa para todo el equipo', 'One reward for the whole team')}</Text>
+        <View style={s.ruleHighlight}>
+          <Text style={s.ruleDays}>+7</Text>
+          <View style={s.ruleCopy}>
+            <Text style={s.ruleLabel}>{t('días de Premium', 'Premium days')}</Text>
+            <Text style={s.ruleHint}>{t('Por cada reto aprobado por un adulto autorizado.', 'For each challenge approved by an authorized adult.')}</Text>
+          </View>
+        </View>
+        <View style={s.ruleDivider} />
+        <View style={s.ruleLine}>
+          <Text style={s.ruleIcon}>↗</Text>
+          <Text style={s.ruleText}>{t('Los días se acumulan: se suman al vencimiento actual o desde hoy si ya terminó.', 'Days stack: they are added to the current expiry date, or from today if it has ended.')}</Text>
+        </View>
+        <View style={s.ruleLine}>
+          <Text style={s.ruleIcon}>⌂</Text>
+          <Text style={s.ruleText}>{t('El beneficio se comparte con todos los integrantes del hogar, incluidos los menores.', 'The benefit is shared with everyone in the household, including minors.')}</Text>
+        </View>
+        <View style={s.ruleLine}>
+          <Text style={s.ruleIcon}>✓</Text>
+          <Text style={s.ruleText}>{t('La participación y aprobación estarán disponibles cuando exista una verificación de edad adecuada.', 'Participation and approval will be enabled once suitable age verification is in place.')}</Text>
+        </View>
+      </View>
+
       <View style={s.sectionHeader}>
         <View style={{ flex: 1 }}>
           <Text style={s.sectionTitle}>{t('Retos del hogar', 'Household challenges')}</Text>
@@ -121,8 +146,12 @@ export function RewardsScreen({ householdId, language, onBack }: Props) {
         <View style={s.emptyCard}><Text style={s.emptyTitle}>{t('Todavía no hay retos activos', 'No active challenges yet')}</Text><Text style={s.muted}>{t('Los retos aparecerán aquí cuando se habilite la gestión para adultos.', 'Challenges will appear here when adult management is enabled.')}</Text></View>
       ) : challenges.map((challenge) => (
         <View key={challenge.id} style={s.challengeCard}>
-          <Text style={s.challengeTitle}>{challenge.title}</Text>
+          <View style={s.challengeTop}>
+            <Text style={s.challengeTitle}>{challenge.title}</Text>
+            <View style={s.activePill}><Text style={s.activePillText}>{t('ACTIVO', 'ACTIVE')}</Text></View>
+          </View>
           {challenge.description ? <Text style={s.muted}>{challenge.description}</Text> : null}
+          <Text style={s.challengeDate}>{t('Publicado', 'Posted')} {new Date(challenge.created_at).toLocaleDateString(isEs ? 'es-CO' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
         </View>
       ))}
       <Text style={s.footer}>{t('Hogar Feliz Rewards · Una casa, un equipo.', 'Hogar Feliz Rewards · One home, one team.')}</Text>
@@ -158,8 +187,24 @@ const s = StyleSheet.create({
   refreshText: { color: '#247A58', fontSize: 11, fontWeight: '800' },
   emptyCard: { backgroundColor: '#FFFFFF', borderRadius: 17, padding: 18, borderWidth: 1, borderColor: '#E7EEE7' },
   emptyTitle: { color: '#18372B', fontSize: 13, fontWeight: '900', marginBottom: 5 },
+  rulesCard: { backgroundColor: '#FFFFFF', borderRadius: 19, padding: 17, borderWidth: 1, borderColor: '#E7EEE7', marginTop: 7, marginBottom: 19 },
+  rulesEyebrow: { color: '#247A58', fontSize: 9, fontWeight: '900', letterSpacing: 1.2, marginBottom: 7 },
+  rulesTitle: { color: '#18372B', fontSize: 16, fontWeight: '900', marginBottom: 13 },
+  ruleHighlight: { backgroundColor: '#EAF3E9', borderRadius: 15, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  ruleDays: { color: '#176B50', fontSize: 29, fontWeight: '900' },
+  ruleCopy: { flex: 1 },
+  ruleLabel: { color: '#18372B', fontSize: 13, fontWeight: '900' },
+  ruleHint: { color: '#718176', fontSize: 10, lineHeight: 15, marginTop: 3 },
+  ruleDivider: { height: 1, backgroundColor: '#EDF1EC', marginVertical: 12 },
+  ruleLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 8 },
+  ruleIcon: { color: '#247A58', fontSize: 15, fontWeight: '900', width: 17, textAlign: 'center' },
+  ruleText: { color: '#68796D', fontSize: 10, lineHeight: 16, flex: 1 },
   challengeCard: { backgroundColor: '#FFFFFF', borderRadius: 17, padding: 17, borderWidth: 1, borderColor: '#E7EEE7', marginBottom: 10 },
-  challengeTitle: { color: '#18372B', fontSize: 14, fontWeight: '900', marginBottom: 5 },
+  challengeTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  challengeTitle: { color: '#18372B', fontSize: 14, fontWeight: '900', marginBottom: 5, flex: 1 },
+  activePill: { backgroundColor: '#EAF3E9', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
+  activePillText: { color: '#247A58', fontSize: 8, fontWeight: '900', letterSpacing: 0.6 },
+  challengeDate: { color: '#9AA79D', fontSize: 9, marginTop: 9 },
   errorCard: { backgroundColor: '#FFF1F0', borderRadius: 13, padding: 12, marginBottom: 12 },
   errorText: { color: '#A43F36', fontSize: 11, lineHeight: 16 },
   footer: { color: '#9AA79D', fontSize: 9, fontWeight: '800', letterSpacing: 1, textAlign: 'center', marginTop: 25, marginBottom: 8 },
