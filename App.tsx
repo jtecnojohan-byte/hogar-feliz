@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { supabase } from './src/supabase';
+import { RewardsScreen } from './src/RewardsScreen';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 
@@ -72,7 +73,7 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [tab, setTab] = useState<'tasks' | 'shopping'>('tasks');
-  const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile' | 'hogarbot'>('home');
+  const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile' | 'hogarbot' | 'rewards'>('home');
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [memberPreferences, setMemberPreferences] = useState<Record<string, BotPreference>>({});
   const [botSettings, setBotSettings] = useState<BotSettings>(DEFAULT_BOT_SETTINGS);
@@ -848,6 +849,11 @@ export default function App() {
                     <View style={s.taskCopy}><Text style={s.botEntryTitle}>Organiza con HogarBot</Text><Text style={s.taskMeta}>Recibe sugerencias para repartir las tareas.</Text></View>
                     <Text style={s.taskArrow}>›</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity style={s.botEntryCard} onPress={() => setScreen('rewards')}>
+                    <View style={s.botEntryIcon}><Text style={s.botEntryGlyph}>★</Text></View>
+                    <View style={s.taskCopy}><Text style={s.botEntryTitle}>Hogar Feliz Rewards</Text><Text style={s.taskMeta}>Premium compartido y retos del hogar.</Text></View>
+                    <Text style={s.taskArrow}>›</Text>
+                  </TouchableOpacity>
                   <View style={s.inviteStrip}>
                     <View style={s.inviteCopy}><Text style={s.inviteTitle}>¿Falta alguien en el equipo?</Text><Text style={s.inviteSubtitle}>Comparte el código familiar.</Text></View>
                     <TouchableOpacity style={s.inviteButton} onPress={() => setScreen('profile')}><Text style={s.inviteButtonText}>Ver código</Text></TouchableOpacity>
@@ -921,6 +927,10 @@ export default function App() {
                   ))}
                   <View style={s.botNoteCard}><Text style={s.botNoteTitle}>Así funciona HogarBot 2.0</Text><Text style={s.botNoteText}>Las preferencias se guardan por integrante; el administrador controla los límites generales. El historial empieza a contar desde esta actualización. HogarBot propone tareas pendientes sin responsable y nunca asigna nada sin confirmación.</Text></View>
                 </>
+              )}
+
+              {screen === 'rewards' && (
+                <RewardsScreen householdId={household.id} userId={userId || ''} language={language} onBack={() => setScreen('home')} />
               )}
 
               {screen === 'shopping' && (
