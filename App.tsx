@@ -930,7 +930,7 @@ export default function App() {
               )}
 
               {screen === 'rewards' && (
-                <RewardsScreen householdId={household.id} userId={userId || ''} language={language} onBack={() => setScreen('home')} />
+                <RewardsScreen householdId={household.id} language={language} onBack={() => setScreen('home')} />
               )}
 
               {screen === 'shopping' && (
