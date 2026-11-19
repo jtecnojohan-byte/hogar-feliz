@@ -4,14 +4,13 @@ import { supabase } from './supabase';
 
 type Props = {
   householdId: string;
-  userId: string;
   language: 'es' | 'en';
   onBack: () => void;
 };
 
 type Challenge = { id: string; title: string; description: string | null; created_at: string };
 
-export function RewardsScreen({ householdId, userId, language, onBack }: Props) {
+export function RewardsScreen({ householdId, language, onBack }: Props) {
   const isEs = language === 'es';
   const t = (es: string, en: string) => isEs ? es : en;
   const [loading, setLoading] = useState(true);
@@ -54,7 +53,7 @@ export function RewardsScreen({ householdId, userId, language, onBack }: Props) 
       setLoading(false);
       setRefreshing(false);
     }
-  }, [householdId, userId, isEs]);
+  }, [householdId, isEs]);
 
   useEffect(() => {
     void loadRewards();
