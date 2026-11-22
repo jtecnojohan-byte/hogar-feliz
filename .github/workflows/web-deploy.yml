@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/rewards-v1
   workflow_dispatch:
 
 permissions:
