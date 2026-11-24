@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { supabase } from './src/supabase';
+import { RewardsScreen } from './src/RewardsScreen';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 
@@ -72,7 +73,7 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [tab, setTab] = useState<'tasks' | 'shopping'>('tasks');
-  const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile' | 'hogarbot'>('home');
+  const [screen, setScreen] = useState<'home' | 'tasks' | 'shopping' | 'profile' | 'hogarbot' | 'rewards'>('home');
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [memberPreferences, setMemberPreferences] = useState<Record<string, BotPreference>>({});
   const [botSettings, setBotSettings] = useState<BotSettings>(DEFAULT_BOT_SETTINGS);
@@ -815,7 +816,7 @@ export default function App() {
                       <Text style={s.progressTitle}>Progreso de tareas</Text>
                       <Text style={s.progressPercent}>{progress}%</Text>
                     </View>
-                    <View style={s.progressTrack}><View style={[s.progressFill, { width: progress + '%' }]} /></View>
+                    <View style={s.progressTrack}><View style={[s.progressFill, { width: (progress + '%') as `${number}%` }]} /></View>
                     <Text style={s.progressCaption}>{completedTasks} de {tasks.length} tareas completadas</Text>
                   </View>
                   <View style={s.statsRow}>
@@ -846,6 +847,11 @@ export default function App() {
                   <TouchableOpacity style={s.botEntryCard} onPress={() => setScreen('hogarbot')}>
                     <View style={s.botEntryIcon}><Text style={s.botEntryGlyph}>✦</Text></View>
                     <View style={s.taskCopy}><Text style={s.botEntryTitle}>Organiza con HogarBot</Text><Text style={s.taskMeta}>Recibe sugerencias para repartir las tareas.</Text></View>
+                    <Text style={s.taskArrow}>›</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.botEntryCard} onPress={() => setScreen('rewards')}>
+                    <View style={s.botEntryIcon}><Text style={s.botEntryGlyph}>★</Text></View>
+                    <View style={s.taskCopy}><Text style={s.botEntryTitle}>Hogar Feliz Rewards</Text><Text style={s.taskMeta}>Premium compartido y retos del hogar.</Text></View>
                     <Text style={s.taskArrow}>›</Text>
                   </TouchableOpacity>
                   <View style={s.inviteStrip}>
@@ -923,6 +929,10 @@ export default function App() {
                 </>
               )}
 
+              {screen === 'rewards' && (
+                <RewardsScreen householdId={household.id} language={language} onBack={() => setScreen('home')} />
+              )}
+
               {screen === 'shopping' && (
                 <>
                   <View style={s.welcomeBlock}><Text style={s.dateEyebrow}>LISTA COMPARTIDA</Text><Text style={s.pageTitle}>Compras ▤</Text><Text style={s.pageSubtitle}>Que no se quede nada por fuera.</Text></View>
@@ -975,6 +985,7 @@ export default function App() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F2F6F2' },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18 },
+  helper: { color: '#819087', fontSize: 13, fontWeight: '600' },
   brandMark: { width: 64, height: 64, borderRadius: 22, backgroundColor: '#176B50', alignItems: 'center', justifyContent: 'center', shadowColor: '#174B38', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
   brandMarkText: { color: '#fff', fontSize: 42, fontWeight: '800', marginTop: -6 },
   authPage: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: 48, paddingBottom: 36, width: '100%', maxWidth: 560, alignSelf: 'center' },

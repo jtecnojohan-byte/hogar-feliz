@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/rewards-v1
   workflow_dispatch:
 
 permissions:
@@ -21,20 +22,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20.19.4
+
       - name: Install dependencies
         run: npm install
+
       - name: Export web app
         run: npx expo export --platform web
+
+      - name: Validate web export
+        run: |
+          test -f dist/index.html
+          test -d dist/_expo
+
       - name: Upload website
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

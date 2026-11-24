@@ -6,6 +6,10 @@ on:
   push:
     branches:
       - main
+      - feature/rewards-v1
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -18,7 +22,7 @@ jobs:
       - name: Preparar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Preparar Java 17
         uses: actions/setup-java@v4
@@ -28,6 +32,9 @@ jobs:
 
       - name: Instalar dependencias
         run: npm install
+
+      - name: Verificar TypeScript
+        run: npx tsc --noEmit
 
       - name: Guardar caché de Gradle
         uses: actions/cache@v4
